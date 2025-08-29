@@ -1,13 +1,17 @@
 # ControlCintasPLC
 Control de 3 cintas transportadoras, leer el estado de entradas digitales con sensores, leer el estado de 4 entradas analogicas RTD y escribir en 4 salidas analogicas 4-20mA, usando un PLC Siemens S7-1200.
-Interfaz de usuario (UI) desarrollada en C# con .NET 9 y WinForms. 
+Interfaz de usuario (UI) desarrollada en C# con .NET 9 y WinForms.
+
 Este es un proyecto de automatización industrial común, que involucra programación del PLC (usando TIA Portal) y comunicación Ethernet entre la app C# y el PLC. 
 Esta es una guía para implementar proyectos basicos y escalables en complejidad, esta basado en la biblioteca S7NetPlus, que es gratuita y compatible con S7-1200.
 
+## Interfaz de Usuario
 ![Interface de Usuario](screen_1.png)
 
+## Pantalla de TIA Portal
 ![TIA Portal](screen_2.png)
 
+## Codigo fuente en Visual Studio
 ![Codigo fuente Visual Studio](screen_3.png)
 
 # Configuración del PLC S7-1200
