@@ -17,7 +17,9 @@ Para 3 cintas con enecendido y apagado automatico con tiempo programable entre c
 
 ## Ejemplo de lógica simple para una cinta (extiende a 3):
 En el OB1 (ciclo principal), se usa lógica simple para controlar salidas.
+
 %I0.2      Cinta1_On    %I1.1           %Q0.1
+
 ----| |--------| |------|/|-------------|/|------------( )
 
 Si Start presionado y no Stop, enciende motor.
