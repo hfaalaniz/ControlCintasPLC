@@ -4,6 +4,12 @@ Interfaz de usuario (UI) desarrollada en C# con .NET 9 y WinForms.
 Este es un proyecto de automatización industrial común, que involucra programación del PLC (usando TIA Portal) y comunicación Ethernet entre la app C# y el PLC. 
 Esta es una guía para implementar proyectos basicos y escalables en complejidad, esta basado en la biblioteca S7NetPlus, que es gratuita y compatible con S7-1200.
 
+![Interface de Usuario](screen_1.png)
+
+![TIA Portal](screen_2.png)
+
+![Codigo fuente Visual Studio](screen_3.png)
+
 # Configuración del PLC S7-1200
 ## Hardware necesario:
 
