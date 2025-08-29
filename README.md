@@ -1,5 +1,8 @@
 # ControlCintasPLC
-Control de 3 cintas transportadoras, leer el estado de entradas digitales con sensores, leer el estado de 4 entradas analogicas RTD y escribir en 4 salidas analogicas 4-20mA, usando un PLC Siemens S7-1200, con una interfaz de usuario (UI) desarrollada en C# con .NET 9 y WinForms. Este es un proyecto de automatización industrial común, que involucra programación del PLC (usando TIA Portal) y comunicación Ethernet entre la app C# y el PLC. Esta es una guía para implementar proyectos basicos y escalables en complejidad, esta basado en la biblioteca S7NetPlus, que es gratuita y compatible con S7-1200.
+Control de 3 cintas transportadoras, leer el estado de entradas digitales con sensores, leer el estado de 4 entradas analogicas RTD y escribir en 4 salidas analogicas 4-20mA, usando un PLC Siemens S7-1200.
+Interfaz de usuario (UI) desarrollada en C# con .NET 9 y WinForms. 
+Este es un proyecto de automatización industrial común, que involucra programación del PLC (usando TIA Portal) y comunicación Ethernet entre la app C# y el PLC. 
+Esta es una guía para implementar proyectos basicos y escalables en complejidad, esta basado en la biblioteca S7NetPlus, que es gratuita y compatible con S7-1200.
 
 # Configuración del PLC S7-1200
 ## Hardware necesario:
@@ -30,18 +33,26 @@ La UI se ha desarrollado en Visual Studio con .NET 9 usando la biblioteca S7netp
 
 ## Diseño de la UI:
 Botones para cada cinta: "Encender Cinta 1", "Apagar Cinta 1", etc.
+
 Labels o LEDs (usa PictureBox con imágenes verde/rojo) para mostrar estado (On/Off).
+
 Un TextBox para la IP del PLC y un botón "Conectar".
+
 Un Timer para leer estados periódicamente (cada 500ms).
 
 ## Pruebas
 Ejecuta PLCSIM, descarga programa, RUN.
+
 Inicia NetToPLCSim, conecta, crea un servidor usando las IP asignadas.
+
 Ejecuta la app C#, conecta a IP de NetToPLCSim:502 (ej. 192.168.1.11:102), el puerto 102 se asigna por defecto.
+
 Debes ejecutar NetToPLCSim en modo administrador para que cierre s7iexe, de lo contrario no estará disponible el puerto 102.
+
 Enciende/apaga, verifica estados en TIA Portal (DB1) y salidas simuladas.
 
-
 Código para comunicación con el PLC:
+
 Para conectar vía Ethernet (rack 0, slot 1 para S7-1200)
+
 
