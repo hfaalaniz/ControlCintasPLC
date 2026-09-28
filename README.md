@@ -5,6 +5,49 @@ Interfaz de usuario (UI) desarrollada en C# con .NET 9 y WinForms.
 Este es un proyecto de automatización industrial común, que involucra programación del PLC (usando TIA Portal) y comunicación Ethernet entre la app C# y el PLC. 
 Esta es una guía para implementar proyectos basicos y escalables en complejidad, esta basado en la biblioteca S7NetPlus, que es gratuita y compatible con S7-1200.
 
+## v2 — Planta escalable: N cintas, sensores de temperatura y variadores
+
+La HMI y el PLC ahora se configuran por datos, sin tocar código para añadir elementos (hasta 16 de cada tipo).
+
+### Estructura
+```
+PLC/                         Fuentes externas TIA Portal (importar en este orden)
+  01_UDTs.udt                UDT_Cinta (8 B), UDT_Temperatura (16 B), UDT_Variador (24 B)
+  02_DBs.db                  DB_General, DB_Cintas, DB_Temperaturas, DB_Variadores (NO optimizados)
+  03_FBs.scl                 FB_Cinta, FB_Temperatura, FB_Variador, FB_Secuencia
+  04_Planta.scl              DB_IO, FC_Entradas, FC_Salidas, FB_Planta, OB1
+ControlCintasPLC/
+  plantconfig.json           Cintas, temperaturas, variadores, IP, nº de DB
+  Config/PlantaConfig.cs     Modelo + carga/validación del JSON
+  Plc/DbLayout.cs            Mapa de offsets (espejo de los UDT)
+  Plc/PlcService.cs          S7netplus async, 1 lectura por DB, acceso serializado
+  Controles/*.cs             Paneles dinámicos Cinta / Temperatura / Variador
+```
+
+### Importar en TIA Portal
+1. *Fuentes externas → Agregar archivo* con los 4 ficheros de `PLC/` → *Generar bloques desde fuente*.
+2. Asignar números: `DB_General`=DB10, `DB_Cintas`=DB11, `DB_Temperaturas`=DB12, `DB_Variadores`=DB13 (o cambiarlos en `plantconfig.json`).
+3. CPU → *Protección y seguridad → Mecanismos de conexión*: activar **Permitir acceso PUT/GET**.
+4. Ajustar direcciones físicas **sólo** en `FC_Entradas` / `FC_Salidas`.
+
+### Funciones
+| Elemento | PLC | HMI |
+|---|---|---|
+| Cinta | Marcha/paro, permiso aguas abajo, atasco temporizado, térmico, contador de piezas, fallo enclavado + reset | Marcha/paro, reset, incluir en secuencia, simulación de sensores |
+| Secuencia | Arranque N→1 y parada 1→N con retardo configurable, se aborta con emergencia | Marcha/Parada línea, retardo |
+| Temperatura (RTD SM1231) | °C = raw/10, aviso/disparo con histéresis, rotura de hilo ⇒ disparo, detiene la cinta asociada | Valor, barra, estado, límites editables |
+| Variador | Cableado (DO marcha/inversión/reset, AQ 4-20 mA, AI Hz/A) **o** PROFINET SINAMICS telegrama 1 (STW1/HSW, ZSW1/HIW); rampa software; esclavo de cinta | Hz reales, corriente, consigna y rampa, marcha/paro/inversión/reset |
+
+### Añadir una cinta / sensor / variador
+1. `FC_Entradas`/`FC_Salidas`: mapear sus E/S al índice `i` de `DB_IO`.
+2. `plantconfig.json`: añadir la entrada en `Cintas`, `Temperaturas` o `Variadores` (`CintaAsociada` enlaza temperatura/variador con una cinta).
+3. En la HMI: *Recargar config.* → *Enviar config. al PLC*.
+
+Más de 16 elementos: subir los `Array[1..16]` en `PLC/` y `DbLayout.MaxElementos`.
+
+### Pruebas con PLCSIM
+Marcar **Simulación (PLCSIM)**: ignora térmicos, variadores responden en modo simulado y los botones *Sim E / Sim S* sustituyen a los sensores.
+
 ## Interfaz de Usuario
 ![Interface de Usuario](screen_1.png)
 

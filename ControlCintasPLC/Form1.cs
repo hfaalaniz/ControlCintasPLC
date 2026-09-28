@@ -1,645 +1,284 @@
-﻿using System;
-using System.Windows.Forms;
-using S7.Net;
-using System.Threading.Tasks;
+using ControlCintasPLC.Config;
+using ControlCintasPLC.Controles;
+using ControlCintasPLC.Plc;
+using static ControlCintasPLC.Plc.DbLayout;
 
 namespace ControlCintasPLC
 {
     public partial class Form1 : Form
     {
-        private Plc plc;
-        private bool enMarcha = false; // Estado de marcha/parada
+        private readonly PlcService _plc = new();
+        private PlantaConfig _cfg = PlantaConfig.PorDefecto();
+
+        private readonly List<CintaControl> _cintas = new();
+        private readonly List<TemperaturaControl> _temps = new();
+        private readonly List<VariadorControl> _vfds = new();
+
+        private bool _leyendo;
+        private bool _actualizando;
+        private int _erroresSeguidos;
+        private DateTime _ultimoReintento = DateTime.MinValue;
 
         public Form1()
         {
             InitializeComponent();
-            txtIP.Text = "192.168.1.11"; // IP de la CPU
-            txtPort.Text = "102"; // Puerto S7
-            txtDelay.Text = "1000"; // Delay inicial en ms (1 segundo)
+            CargarConfiguracion();
         }
 
-        private void btnConectar_Click(object sender, EventArgs e)
+        // ------------------------------------------------------------ Configuración
+        private void CargarConfiguracion()
         {
             try
             {
-                plc = new Plc(CpuType.S71200, txtIP.Text, int.Parse(txtPort.Text), 0, 1); // Rack 0, Slot 1
-                plc.Open();
-                if (plc.IsConnected)
-                {
-                    timerLectura.Start();
-                    MessageBox.Show("Conectado al PLC!");
-                }
+                _cfg = PlantaConfig.Cargar(PlantaConfig.RutaPorDefecto);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error de conexión: {ex.Message}");
+                MessageBox.Show($"Error en plantconfig.json: {ex.Message}\nSe usa la configuración por defecto.",
+                    "Configuración", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _cfg = PlantaConfig.PorDefecto();
+            }
+
+            txtIP.Text = _cfg.Plc.Ip;
+            txtPort.Text = _cfg.Plc.Puerto.ToString();
+            numRetardo.Value = Math.Clamp(_cfg.RetardoSecuenciaMs, 0, (int)numRetardo.Maximum);
+            timerLectura.Interval = Math.Max(100, _cfg.IntervaloLecturaMs);
+            ConstruirPaneles();
+        }
+
+        private void ConstruirPaneles()
+        {
+            foreach (var flp in new[] { flpCintas, flpTemperaturas, flpVariadores })
+            {
+                flp.SuspendLayout();
+                foreach (Control c in flp.Controls) c.Dispose();
+                flp.Controls.Clear();
+            }
+            _cintas.Clear();
+            _temps.Clear();
+            _vfds.Clear();
+
+            Ejecutor ej = EjecutarAsync;
+            for (int i = 0; i < _cfg.Cintas.Count; i++) _cintas.Add(new CintaControl(i, _cfg.Cintas[i], _plc, ej));
+            for (int i = 0; i < _cfg.Temperaturas.Count; i++) _temps.Add(new TemperaturaControl(i, _cfg.Temperaturas[i], _plc, ej));
+            for (int i = 0; i < _cfg.Variadores.Count; i++) _vfds.Add(new VariadorControl(i, _cfg.Variadores[i], _plc, ej));
+
+            flpCintas.Controls.AddRange(_cintas.ToArray<Control>());
+            flpTemperaturas.Controls.AddRange(_temps.ToArray<Control>());
+            flpVariadores.Controls.AddRange(_vfds.ToArray<Control>());
+            foreach (var flp in new[] { flpCintas, flpTemperaturas, flpVariadores }) flp.ResumeLayout();
+
+            ActualizarTitulosTabs(null);
+        }
+
+        private void btnRecargarConfig_Click(object sender, EventArgs e) => CargarConfiguracion();
+
+        private async void btnEnviarConfig_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("¿Sobrescribir los parámetros del PLC con plantconfig.json?", "Enviar configuración",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            _cfg.RetardoSecuenciaMs = (int)numRetardo.Value;
+            await EjecutarAsync(() => _plc.EnviarConfiguracionAsync(_cfg), "configuración enviada");
+            ConstruirPaneles(); // los controles recargan límites/consignas desde el PLC
+        }
+
+        // ------------------------------------------------------------ Conexión
+        private async void btnConectar_Click(object sender, EventArgs e)
+        {
+            if (!int.TryParse(txtPort.Text, out int puerto) || puerto is < 1 or > 65535)
+            {
+                MessageBox.Show("Puerto no válido");
+                return;
+            }
+
+            _cfg.Plc.Ip = txtIP.Text.Trim();
+            _cfg.Plc.Puerto = puerto;
+            btnConectar.Enabled = false;
+            stConexion.Text = "Conectando...";
+            try
+            {
+                await _plc.ConectarAsync(_cfg.Plc);
+                GuardarConfigSilencioso();
+                _erroresSeguidos = 0;
+                timerLectura.Start();
+                btnDesconectar.Enabled = true;
+                stConexion.Text = $"Conectado {_cfg.Plc.Ip}";
+                stConexion.ForeColor = Color.Green;
+            }
+            catch (Exception ex)
+            {
+                btnConectar.Enabled = true;
+                stConexion.Text = "Desconectado";
+                MessageBox.Show($"Error de conexión: {ex.Message}", "PLC", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         private void btnDesconectar_Click(object sender, EventArgs e)
         {
-            try
-            {
-                timerLectura.Stop();
-                plc.Close();
-                MessageBox.Show("Desconectado del PLC!");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al desconectar: {ex.Message}");
-            }
+            timerLectura.Stop();
+            try { _plc.Desconectar(); }
+            catch (Exception ex) { stMensaje.Text = ex.Message; }
+
+            btnConectar.Enabled = true;
+            btnDesconectar.Enabled = false;
+            stConexion.Text = "Desconectado";
+            stConexion.ForeColor = SystemColors.ControlText;
+            MostrarSnapshot(null);
         }
 
-        private void timerLectura_Tick(object sender, EventArgs e)
+        private void GuardarConfigSilencioso()
         {
-            try
-            {
-                bool cinta1 = Convert.ToBoolean(plc.Read(DataType.DataBlock, 1, 0, VarType.Bit, 1, 0));
-                bool cinta2 = Convert.ToBoolean(plc.Read(DataType.DataBlock, 1, 0, VarType.Bit, 1, 1));
-                bool cinta3 = Convert.ToBoolean(plc.Read(DataType.DataBlock, 1, 0, VarType.Bit, 1, 2));
-                lblCinta1.Text = cinta1 ? "Encendida" : "Apagada";
-                lblCinta2.Text = cinta2 ? "Encendida" : "Apagada";
-                lblCinta3.Text = cinta3 ? "Encendida" : "Apagada";
-
-                bool q0_0 = Convert.ToBoolean(plc.Read(DataType.Output, 0, 0, VarType.Bit, 1));
-                bool q0_1 = Convert.ToBoolean(plc.Read(DataType.Output, 0, 1, VarType.Bit, 1));
-                bool q0_2 = Convert.ToBoolean(plc.Read(DataType.Output, 0, 2, VarType.Bit, 1));
-                stCinta1.Text = $"Q0.0 = {q0_0}";
-                stCinta2.Text = $"Q0.1 = {q0_1}";
-                stCinta3.Text = $"Q0.2 = {q0_2}";
-
-                bool i0_3 = Convert.ToBoolean(plc.Read(DataType.Input, 0, 3, VarType.Bit, 1));
-                bool i0_4 = Convert.ToBoolean(plc.Read(DataType.Input, 0, 4, VarType.Bit, 1));
-                bool i0_5 = Convert.ToBoolean(plc.Read(DataType.Input, 0, 5, VarType.Bit, 1));
-                bool i1_1 = Convert.ToBoolean(plc.Read(DataType.Input, 1, 1, VarType.Bit, 1));
-                stCinta1.Text = $"I0.3 = {i0_3}";
-                stCinta2.Text = $"I0.4 = {i0_4}";
-                stCinta3.Text = $"I0.5 = {i0_5}";
-                lblEmergencia.Text = $"I1.1 = {i1_1}";
-
-                // Leer entradas analógicas AI4 x RTD (asumiendo direcciones IW64, IW66, IW68, IW70)
-                ushort ai1 = (ushort)plc.Read(DataType.Input, 0, 64, VarType.Word, 1);
-                ushort ai2 = (ushort)plc.Read(DataType.Input, 0, 66, VarType.Word, 1);
-                ushort ai3 = (ushort)plc.Read(DataType.Input, 0, 68, VarType.Word, 1);
-                ushort ai4 = (ushort)plc.Read(DataType.Input, 0, 70, VarType.Word, 1);
-                lblAI1.Text = ai1.ToString();
-                lblAI2.Text = ai2.ToString();
-                lblAI3.Text = ai3.ToString();
-                lblAI4.Text = ai4.ToString();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al leer: {ex.Message}");
-            }
+            try { _cfg.Guardar(PlantaConfig.RutaPorDefecto); }
+            catch (Exception ex) { stMensaje.Text = $"No se pudo guardar config: {ex.Message}"; }
         }
 
-        private async void btnMarchaParada_Click(object sender, EventArgs e)
+        // ------------------------------------------------------------ Lectura cíclica
+        private async void timerLectura_Tick(object sender, EventArgs e)
         {
+            if (_leyendo) return;
+            _leyendo = true;
             try
             {
-                if (!int.TryParse(txtDelay.Text, out int delay) || delay < 0)
+                if (!_plc.IsConnected)
                 {
-                    MessageBox.Show("Ingrese un retraso válido (número positivo en ms)");
+                    await IntentarReconectarAsync();
                     return;
                 }
 
-                if (!enMarcha)
+                var s = await _plc.LeerAsync(_cfg.Cintas.Count, _cfg.Temperaturas.Count, _cfg.Variadores.Count);
+                MostrarSnapshot(s);
+                _erroresSeguidos = 0;
+                stConexion.Text = $"Conectado {_cfg.Plc.Ip}";
+                stConexion.ForeColor = Color.Green;
+            }
+            catch (Exception ex)
+            {
+                _erroresSeguidos++;
+                stConexion.Text = $"Error de lectura ({_erroresSeguidos})";
+                stConexion.ForeColor = Color.Red;
+                stMensaje.Text = $"{DateTime.Now:HH:mm:ss} {ex.Message}";
+                if (_erroresSeguidos >= 3)
                 {
-                    // Arranque: Cinta 3 → Cinta 2 → Cinta 1
-                    btnMarchaParada.Text = "Parada";
-                    enMarcha = true;
-                    plc.Write(DataType.Input, 0, 5, false); // %I0.5
-                    plc.Write(DataType.Input, 0, 4, false); // %I0.4
-                    plc.Write(DataType.Input, 0, 3, false); // %I0.3
-                    plc.Write(DataType.Input, 1, 1, false); // %I1.1
-
-                    plc.Write(DataType.DataBlock, 1, 0, true, 2); // Cinta3_On
-                    await Task.Delay(delay);
-                    plc.Write(DataType.DataBlock, 1, 0, true, 1); // Cinta2_On
-                    await Task.Delay(delay);
-                    plc.Write(DataType.DataBlock, 1, 0, true, 0); // Cinta1_On
-                    MessageBox.Show("Arranque automático completado");
-                }
-                else
-                {
-                    // Parada: Cinta 1 → Cinta 2 → Cinta 3
-                    btnMarchaParada.Text = "Marcha";
-                    enMarcha = false;
-                    plc.Write(DataType.DataBlock, 1, 0, false, 0); // Cinta1_On
-                    await Task.Delay(delay);
-                    plc.Write(DataType.DataBlock, 1, 0, false, 1); // Cinta2_On
-                    await Task.Delay(delay);
-                    plc.Write(DataType.DataBlock, 1, 0, false, 2); // Cinta3_On
-                    MessageBox.Show("Parada automática completada");
+                    MostrarSnapshot(null);
+                    try { _plc.Desconectar(); } catch { /* se reintenta en el siguiente tick */ }
                 }
             }
-            catch (Exception ex)
+            finally
             {
-                MessageBox.Show($"Error en marcha/parada: {ex.Message}");
+                _leyendo = false;
             }
         }
 
-        private void btnCinta1_Click(object sender, EventArgs e)
+        private async Task IntentarReconectarAsync()
         {
+            if (DateTime.Now - _ultimoReintento < TimeSpan.FromSeconds(5)) return;
+            _ultimoReintento = DateTime.Now;
+            stConexion.Text = "Reconectando...";
+            stConexion.ForeColor = Color.DarkOrange;
+            try { await _plc.ConectarAsync(_cfg.Plc); }
+            catch (Exception ex) { stMensaje.Text = $"{DateTime.Now:HH:mm:ss} Reconexión fallida: {ex.Message}"; }
+        }
+
+        private void MostrarSnapshot(PlantaSnapshot? s)
+        {
+            bool sim = s?.General.Simulacion ?? false;
+            for (int i = 0; i < _cintas.Count; i++) _cintas[i].Actualizar(s?.Cintas[i], sim);
+            for (int i = 0; i < _temps.Count; i++) _temps[i].Actualizar(s?.Temperaturas[i]);
+            for (int i = 0; i < _vfds.Count; i++) _vfds[i].Actualizar(s?.Variadores[i]);
+            ActualizarTitulosTabs(s);
+
+            if (s is null)
+            {
+                stEmergencia.Text = "Emergencia: —";
+                stEmergencia.BackColor = SystemColors.Control;
+                stSecuencia.Text = "Paso: —";
+                lblSecuencia.Text = "Línea: —";
+                return;
+            }
+
+            var g = s.General;
+            _actualizando = true;
+            chkSimulacion.Checked = g.Simulacion;
+            _actualizando = false;
+
+            stEmergencia.Text = g.Emergencia ? "EMERGENCIA ACTIVA" : "Emergencia: OK";
+            stEmergencia.BackColor = g.Emergencia ? Color.Red : Color.PaleGreen;
+            stSecuencia.Text = g.PasoSecuencia > 0 ? $"Paso secuencia: cinta {g.PasoSecuencia}" : "Paso: —";
+
+            int enMarcha = s.Cintas.Count(c => c.Running);
+            (lblSecuencia.Text, lblSecuencia.ForeColor) = g switch
+            {
+                { Emergencia: true } => ("Línea: EMERGENCIA", Color.Red),
+                { PasoSecuencia: > 0 } => ("Línea: en transición", Color.DarkOrange),
+                { SecuenciaActiva: true } => ($"Línea: en marcha ({enMarcha}/{s.Cintas.Count})", Color.Green),
+                _ => ($"Línea: parada ({enMarcha}/{s.Cintas.Count})", Color.Black)
+            };
+        }
+
+        private void ActualizarTitulosTabs(PlantaSnapshot? s)
+        {
+            int fallosC = s?.Cintas.Count(c => c.Fault) ?? 0;
+            int alarmasT = s?.Temperaturas.Count(t => t.Habilitado && (t.Aviso || t.Disparo || t.Rotura)) ?? 0;
+            int fallosV = s?.Variadores.Count(v => v.Fault) ?? 0;
+            tabCintas.Text = $"Cintas ({_cintas.Count})" + (fallosC > 0 ? $" ⚠{fallosC}" : "");
+            tabTemperaturas.Text = $"Temperaturas ({_temps.Count})" + (alarmasT > 0 ? $" ⚠{alarmasT}" : "");
+            tabVariadores.Text = $"Variadores ({_vfds.Count})" + (fallosV > 0 ? $" ⚠{fallosV}" : "");
+        }
+
+        // ------------------------------------------------------------ Mando general
+        private async Task EjecutarAsync(Func<Task> accion, string descripcion)
+        {
+            if (!_plc.IsConnected)
+            {
+                stMensaje.Text = "No conectado al PLC";
+                return;
+            }
             try
             {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.DataBlock, 1, 0, VarType.Bit, 1, 0));
-                bool newState = !currentState;
-                plc.Write(DataType.DataBlock, 1, 0, newState, 0);
-                MessageBox.Show($"Cinta1_On cambiado a: {newState}");
+                await accion();
+                stMensaje.Text = $"{DateTime.Now:HH:mm:ss} OK: {descripcion}";
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al escribir Cinta1: {ex.Message}");
+                stMensaje.Text = $"{DateTime.Now:HH:mm:ss} Error: {descripcion}";
+                MessageBox.Show($"{descripcion}\n{ex.Message}", "Error PLC", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private void btnCinta2_Click(object sender, EventArgs e)
+        private async void btnMarchaSecuencia_Click(object sender, EventArgs e) =>
+            await EjecutarAsync(() => _plc.GeneralBitAsync(General.BitCmdMarchaSecuencia, true), "marcha secuencial");
+
+        private async void btnParadaSecuencia_Click(object sender, EventArgs e) =>
+            await EjecutarAsync(() => _plc.GeneralBitAsync(General.BitCmdParadaSecuencia, true), "parada secuencial");
+
+        private async void btnAplicarRetardo_Click(object sender, EventArgs e)
         {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.DataBlock, 1, 0, VarType.Bit, 1, 1));
-                bool newState = !currentState;
-                plc.Write(DataType.DataBlock, 1, 0, newState, 1);
-                MessageBox.Show($"Cinta2_On cambiado a: {newState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al escribir Cinta2: {ex.Message}");
-            }
+            int ms = (int)numRetardo.Value;
+            _cfg.RetardoSecuenciaMs = ms;
+            await EjecutarAsync(() => _plc.EscribirDIntAsync(_plc.Config.DbGeneral, General.RetardoSecuenciaMs, ms),
+                $"retardo {ms} ms");
         }
 
-        private void btnCinta3_Click(object sender, EventArgs e)
+        private async void btnEmergencia_Click(object sender, EventArgs e) =>
+            await EjecutarAsync(() => _plc.GeneralBitAsync(General.BitCmdEmergenciaHmi, true), "emergencia activada");
+
+        private async void btnDesactivarEmergencia_Click(object sender, EventArgs e) =>
+            await EjecutarAsync(() => _plc.GeneralBitAsync(General.BitCmdEmergenciaHmi, false), "emergencia rearmada");
+
+        private async void btnResetGeneral_Click(object sender, EventArgs e) =>
+            await EjecutarAsync(() => _plc.GeneralBitAsync(General.BitCmdResetGeneral, true), "reset de fallos");
+
+        private async void chkSimulacion_CheckedChanged(object sender, EventArgs e)
         {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.DataBlock, 1, 0, VarType.Bit, 1, 2));
-                bool newState = !currentState;
-                plc.Write(DataType.DataBlock, 1, 0, newState, 2);
-                MessageBox.Show($"Cinta3_On cambiado a: {newState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al escribir Cinta3: {ex.Message}");
-            }
+            if (_actualizando) return;
+            bool v = chkSimulacion.Checked;
+            await EjecutarAsync(() => _plc.GeneralBitAsync(General.BitSimulacion, v), v ? "simulación ON" : "simulación OFF");
         }
 
-        private void btnEmergencia_Click(object sender, EventArgs e)
+        protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            try
-            {
-                plc.Write(DataType.Input, 1, 1, true); // Forzar %I1.1
-                MessageBox.Show("Emergencia activada");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al activar emergencia: {ex.Message}");
-            }
-        }
-
-        private void btnDesactivarEmergencia_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                plc.Write(DataType.Input, 1, 1, false); // Desactivar %I1.1
-                MessageBox.Show("Emergencia desactivada");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al desactivar emergencia: {ex.Message}");
-            }
-        }
-
-        private void btnSensorCinta1_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.Input, 0, 3, VarType.Bit, 1));
-                plc.Write(DataType.Input, 0, 3, !currentState); // Toggle %I0.3
-                MessageBox.Show($"Sensor Cinta1 (%I0.3) cambiado a: {!currentState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al cambiar %I0.3: {ex.Message}");
-            }
-        }
-
-        private void btnSensorCinta2_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.Input, 0, 4, VarType.Bit, 1));
-                plc.Write(DataType.Input, 0, 4, !currentState); // Toggle %I0.4
-                MessageBox.Show($"Sensor Cinta2 (%I0.4) cambiado a: {!currentState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al cambiar %I0.4: {ex.Message}");
-            }
-        }
-
-        private void btnSensorCinta3_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.Input, 0, 5, VarType.Bit, 1));
-                plc.Write(DataType.Input, 0, 5, !currentState); // Toggle %I0.5
-                MessageBox.Show($"Sensor Cinta3 (%I0.5) cambiado a: {!currentState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al cambiar %I0.5: {ex.Message}");
-            }
-        }
-
-        private void btnAplicarAQ_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                plc.Write(DataType.Output, 0, 64, (ushort)numericUpDownAQ1.Value); // AQ1 %QW64
-                plc.Write(DataType.Output, 0, 66, (ushort)numericUpDownAQ2.Value); // AQ2 %QW66
-                plc.Write(DataType.Output, 0, 68, (ushort)numericUpDownAQ3.Value); // AQ3 %QW68
-                plc.Write(DataType.Output, 0, 70, (ushort)numericUpDownAQ4.Value); // AQ4 %QW70
-                MessageBox.Show("Salidas analógicas aplicadas");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al aplicar salidas analógicas: {ex.Message}");
-            }
+            timerLectura.Stop();
+            base.OnFormClosing(e);
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*using System;
-using System.Windows.Forms;
-using S7.Net;
-using System.Threading.Tasks;
-
-namespace ControlCintasPLC
-{
-    public partial class Form1 : Form
-    {
-        private Plc plc;
-        private bool enMarcha = false; // Estado de marcha/parada
-
-        public Form1()
-        {
-            InitializeComponent();
-            txtIP.Text = "192.168.1.11"; // Ajustar según CPU o NetToPLCSim
-            txtPort.Text = "102"; // Puerto S7
-            txtDelay.Text = "1000"; // Retardo inicial en ms (1 segundo)
-        }
-
-        private void btnConectar_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                plc = new Plc(CpuType.S71200, txtIP.Text, int.Parse(txtPort.Text), 0, 1);
-                plc.Open();
-                if (plc.IsConnected)
-                {
-                    timerLectura.Start();
-                    MessageBox.Show("Conectado al PLC!");
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error de conexión: {ex.Message}");
-            }
-        }
-
-        private void btnDesconectar_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                timerLectura.Stop();
-                plc.Close();
-                MessageBox.Show("Desconectado del PLC!");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al desconectar: {ex.Message}");
-            }
-        }
-
-        private void timerLectura_Tick(object sender, EventArgs e)
-        {
-            try
-            {
-                bool cinta1 = Convert.ToBoolean(plc.Read(DataType.DataBlock, 1, 0, VarType.Bit, 1, 0));
-                bool cinta2 = Convert.ToBoolean(plc.Read(DataType.DataBlock, 1, 0, VarType.Bit, 1, 1));
-                bool cinta3 = Convert.ToBoolean(plc.Read(DataType.DataBlock, 1, 0, VarType.Bit, 1, 2));
-                lblCinta1.Text = cinta1 ? "Encendida" : "Apagada";
-                lblCinta2.Text = cinta2 ? "Encendida" : "Apagada";
-                lblCinta3.Text = cinta3 ? "Encendida" : "Apagada";
-
-                bool q0_0 = Convert.ToBoolean(plc.Read(DataType.Output, 0, 0, VarType.Bit, 1));
-                bool q0_1 = Convert.ToBoolean(plc.Read(DataType.Output, 0, 1, VarType.Bit, 1));
-                bool q0_2 = Convert.ToBoolean(plc.Read(DataType.Output, 0, 2, VarType.Bit, 1));
-                stCinta1.Text = $"Q0.0 = {q0_0}";
-                stCinta2.Text = $"Q0.1 = {q0_1}";
-                stCinta3.Text = $"Q0.2 = {q0_2}";
-
-                bool i0_0 = Convert.ToBoolean(plc.Read(DataType.Input, 0, 0, VarType.Bit, 1));
-                bool i0_1 = Convert.ToBoolean(plc.Read(DataType.Input, 0, 1, VarType.Bit, 1));
-                bool i0_2 = Convert.ToBoolean(plc.Read(DataType.Input, 0, 2, VarType.Bit, 1));
-                bool i0_3 = Convert.ToBoolean(plc.Read(DataType.Input, 0, 3, VarType.Bit, 1));
-                bool i0_4 = Convert.ToBoolean(plc.Read(DataType.Input, 0, 4, VarType.Bit, 1));
-                bool i0_5 = Convert.ToBoolean(plc.Read(DataType.Input, 0, 5, VarType.Bit, 1));
-                bool i0_6 = Convert.ToBoolean(plc.Read(DataType.Input, 0, 6, VarType.Bit, 1));
-                bool i0_7 = Convert.ToBoolean(plc.Read(DataType.Input, 0, 7, VarType.Bit, 1));
-                bool i1_0 = Convert.ToBoolean(plc.Read(DataType.Input, 1, 0, VarType.Bit, 1));
-                bool i1_1 = Convert.ToBoolean(plc.Read(DataType.Input, 1, 1, VarType.Bit, 1));
-                lblSensorCinta1On.Text = $"I0.0 = {i0_0}";
-                lblSensorCinta1Off.Text = $"I0.1 = {i0_1}";
-                lblSensorCinta2On.Text = $"I0.2 = {i0_2}";
-                lblSensorCinta2Off.Text = $"I0.3 = {i0_3}";
-                lblSensorCinta3On.Text = $"I0.4 = {i0_4}";
-                lblSensorCinta3Off.Text = $"I0.5 = {i0_5}";
-                lblSensorCinta2Extra.Text = $"I0.6 = {i0_6}";
-                lblSensorCinta2Cinta3.Text = $"I0.7 = {i0_7}";
-                lblSensorCinta3Extra.Text = $"I1.0 = {i1_0}";
-                lblEmergencia.Text = $"I1.1 = {i1_1}";
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al leer: {ex.Message}");
-            }
-        }
-
-        private void btnCinta1_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.DataBlock, 1, 0, VarType.Bit, 1, 0));
-                bool newState = !currentState;
-                plc.Write(DataType.DataBlock, 1, 0, newState, 0);
-                MessageBox.Show($"Cinta1_On cambiado a: {newState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al escribir Cinta1: {ex.Message}");
-            }
-        }
-
-        private void btnCinta2_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.DataBlock, 1, 0, VarType.Bit, 1, 1));
-                bool newState = !currentState;
-                plc.Write(DataType.DataBlock, 1, 0, newState, 1);
-                MessageBox.Show($"Cinta2_On cambiado a: {newState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al escribir Cinta2: {ex.Message}");
-            }
-        }
-
-        private void btnCinta3_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.DataBlock, 1, 0, VarType.Bit, 1, 2));
-                bool newState = !currentState;
-                plc.Write(DataType.DataBlock, 1, 0, newState, 2);
-                MessageBox.Show($"Cinta3_On cambiado a: {newState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al escribir Cinta3: {ex.Message}");
-            }
-        }
-
-        private void btnEmergencia_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                plc.Write(DataType.Input, 1, 1, true);
-                MessageBox.Show("Emergencia activada");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al activar emergencia: {ex.Message}");
-            }
-        }
-
-        private void btnDesactivarEmergencia_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                plc.Write(DataType.Input, 1, 1, false);
-                MessageBox.Show("Emergencia desactivada");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al desactivar emergencia: {ex.Message}");
-            }
-        }
-
-        private async void btnMarchaParada_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                if (!int.TryParse(txtDelay.Text, out int delayMs) || delayMs < 0)
-                {
-                    MessageBox.Show("Por favor, ingrese un valor válido para el retardo (ms).");
-                    return;
-                }
-
-                if (!enMarcha)
-                {
-                    btnMarchaParada.Enabled = false;
-                    plc.Write(DataType.DataBlock, 1, 0, true, 2); // Cinta3_On
-                    await Task.Delay(delayMs);
-                    plc.Write(DataType.DataBlock, 1, 0, true, 1); // Cinta2_On
-                    await Task.Delay(delayMs);
-                    plc.Write(DataType.DataBlock, 1, 0, true, 0); // Cinta1_On
-                    enMarcha = true;
-                    btnMarchaParada.Text = "Parada";
-                    MessageBox.Show("Arranque automático completado");
-                }
-                else
-                {
-                    btnMarchaParada.Enabled = false;
-                    plc.Write(DataType.DataBlock, 1, 0, false, 0); // Cinta1_On
-                    await Task.Delay(delayMs);
-                    plc.Write(DataType.DataBlock, 1, 0, false, 1); // Cinta2_On
-                    await Task.Delay(delayMs);
-                    plc.Write(DataType.DataBlock, 1, 0, false, 2); // Cinta3_On
-                    enMarcha = false;
-                    btnMarchaParada.Text = "Marcha";
-                    MessageBox.Show("Parada automática completada");
-                }
-                btnMarchaParada.Enabled = true;
-            }
-            catch (Exception ex)
-            {
-                btnMarchaParada.Enabled = true;
-                MessageBox.Show($"Error en arranque/parada: {ex.Message}");
-            }
-        }
-
-        private void btnSensorCinta1On_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.Input, 0, 0, VarType.Bit, 1));
-                plc.Write(DataType.Input, 0, 0, !currentState);
-                MessageBox.Show($"Sensor Cinta1_On (%I0.0) cambiado a: {!currentState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al cambiar %I0.0: {ex.Message}");
-            }
-        }
-
-        private void btnSensorCinta1Off_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.Input, 0, 1, VarType.Bit, 1));
-                plc.Write(DataType.Input, 0, 1, !currentState);
-                MessageBox.Show($"Sensor Cinta1_Off (%I0.1) cambiado a: {!currentState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al cambiar %I0.1: {ex.Message}");
-            }
-        }
-
-        private void btnSensorCinta2On_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.Input, 0, 2, VarType.Bit, 1));
-                plc.Write(DataType.Input, 0, 2, !currentState);
-                MessageBox.Show($"Sensor Cinta2_On (%I0.2) cambiado a: {!currentState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al cambiar %I0.2: {ex.Message}");
-            }
-        }
-
-        private void btnSensorCinta2Off_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.Input, 0, 3, VarType.Bit, 1));
-                plc.Write(DataType.Input, 0, 3, !currentState);
-                MessageBox.Show($"Sensor Cinta2_Off (%I0.3) cambiado a: {!currentState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al cambiar %I0.3: {ex.Message}");
-            }
-        }
-
-        private void btnSensorCinta3On_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.Input, 0, 4, VarType.Bit, 1));
-                plc.Write(DataType.Input, 0, 4, !currentState);
-                MessageBox.Show($"Sensor Cinta3_On (%I0.4) cambiado a: {!currentState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al cambiar %I0.4: {ex.Message}");
-            }
-        }
-
-        private void btnSensorCinta3Off_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.Input, 0, 5, VarType.Bit, 1));
-                plc.Write(DataType.Input, 0, 5, !currentState);
-                MessageBox.Show($"Sensor Cinta3_Off (%I0.5) cambiado a: {!currentState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al cambiar %I0.5: {ex.Message}");
-            }
-        }
-
-        private void btnSensorCinta2Extra_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.Input, 0, 6, VarType.Bit, 1));
-                plc.Write(DataType.Input, 0, 6, !currentState);
-                MessageBox.Show($"Sensor Extra Cinta2 (%I0.6) cambiado a: {!currentState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al cambiar %I0.6: {ex.Message}");
-            }
-        }
-
-        private void btnSensorCinta2Cinta3_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.Input, 0, 7, VarType.Bit, 1));
-                plc.Write(DataType.Input, 0, 7, !currentState);
-                MessageBox.Show($"Sensor Cinta2/Cinta3 (%I0.7) cambiado a: {!currentState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al cambiar %I0.7: {ex.Message}");
-            }
-        }
-
-        private void btnSensorCinta3Extra_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool currentState = Convert.ToBoolean(plc.Read(DataType.Input, 1, 0, VarType.Bit, 1));
-                plc.Write(DataType.Input, 1, 0, !currentState);
-                MessageBox.Show($"Sensor Extra Cinta3 (%I1.0) cambiado a: {!currentState}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al cambiar %I1.0: {ex.Message}");
-            }
-        }
-
-        private void btnActivarEntradas_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                plc.Write(DataType.Input, 0, 0, true);
-                plc.Write(DataType.Input, 0, 2, true);
-                plc.Write(DataType.Input, 0, 4, true);
-                plc.Write(DataType.Input, 0, 6, true);
-                plc.Write(DataType.Input, 0, 7, true);
-                plc.Write(DataType.Input, 0, 1, false);
-                plc.Write(DataType.Input, 0, 3, false);
-                plc.Write(DataType.Input, 0, 5, false);
-                plc.Write(DataType.Input, 1, 0, false);
-                plc.Write(DataType.Input, 1, 1, false);
-                MessageBox.Show("Entradas forzadas para activar cintas");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al forzar entradas: {ex.Message}");
-            }
-        }
-    }
-}*/

@@ -1,0 +1,249 @@
+// =============================================================================
+//  ControlCintasPLC - Imagen de E/S, lógica de planta y OB1
+//  Ajuste FC_Entradas / FC_Salidas a su hardware: es el ÚNICO sitio con
+//  direcciones físicas. Añadir una cinta/sensor/variador = añadir una línea aquí
+//  + dar de alta el elemento en plantconfig.json de la HMI.
+// =============================================================================
+
+DATA_BLOCK "DB_IO"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR
+      Emergencia : Bool;                        // TRUE = paro de emergencia
+      // Cintas
+      CintaSensorEntrada : Array[1..16] of Bool;
+      CintaSensorSalida : Array[1..16] of Bool;
+      CintaTermicoOK : Array[1..16] of Bool;
+      CintaMotor : Array[1..16] of Bool;
+      // Temperaturas (SM1231 RTD)
+      TempRaw : Array[1..16] of Int;
+      // Variadores
+      VfdProfinet : Array[1..16] of Bool;
+      VfdReady : Array[1..16] of Bool;
+      VfdFault : Array[1..16] of Bool;
+      VfdAiFrecuencia : Array[1..16] of Int;
+      VfdAiCorriente : Array[1..16] of Int;
+      VfdCorrienteMaxA : Array[1..16] of Real;
+      VfdZSW1 : Array[1..16] of Word;
+      VfdHIW : Array[1..16] of Int;
+      VfdRun : Array[1..16] of Bool;
+      VfdRev : Array[1..16] of Bool;
+      VfdReset : Array[1..16] of Bool;
+      VfdAQ : Array[1..16] of Int;
+      VfdSTW1 : Array[1..16] of Word;
+      VfdHSW : Array[1..16] of Int;
+   END_VAR
+BEGIN
+END_DATA_BLOCK
+
+// ------------------------------------------------------------- FC_Entradas
+FUNCTION "FC_Entradas" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_TEMP
+      i : Int;
+   END_VAR
+
+BEGIN
+   // Valores por defecto para elementos sin cablear
+   FOR #i := 1 TO 16 DO
+      "DB_IO".CintaTermicoOK[#i] := TRUE;
+      "DB_IO".VfdCorrienteMaxA[#i] := 10.0;
+      "DB_IO".VfdProfinet[#i] := FALSE;
+   END_FOR;
+
+   "DB_IO".Emergencia := %I1.1;   // Instalación real: contacto NC vía relé de seguridad
+
+   // --- Cintas 1..3 (cableado original)
+   "DB_IO".CintaSensorSalida[1] := %I0.3;
+   "DB_IO".CintaSensorSalida[2] := %I0.4;
+   "DB_IO".CintaSensorSalida[3] := %I0.5;
+   // --- Cintas 4..6 (SM1221 DI16 en %I8.x) - ejemplo de ampliación
+   "DB_IO".CintaSensorEntrada[4] := %I8.0;
+   "DB_IO".CintaSensorSalida[4] := %I8.1;
+   "DB_IO".CintaTermicoOK[4] := %I8.2;
+   "DB_IO".CintaSensorEntrada[5] := %I8.3;
+   "DB_IO".CintaSensorSalida[5] := %I8.4;
+   "DB_IO".CintaTermicoOK[5] := %I8.5;
+   "DB_IO".CintaSensorEntrada[6] := %I8.6;
+   "DB_IO".CintaSensorSalida[6] := %I8.7;
+   "DB_IO".CintaTermicoOK[6] := %I9.0;
+
+   // --- Temperaturas: SM1231 RTD 4x (%IW64..70) + segundo módulo (%IW80..86)
+   "DB_IO".TempRaw[1] := %IW64;
+   "DB_IO".TempRaw[2] := %IW66;
+   "DB_IO".TempRaw[3] := %IW68;
+   "DB_IO".TempRaw[4] := %IW70;
+   "DB_IO".TempRaw[5] := %IW80;
+   "DB_IO".TempRaw[6] := %IW82;
+   "DB_IO".TempRaw[7] := %IW84;
+   "DB_IO".TempRaw[8] := %IW86;
+
+   // --- Variadores 1..3 cableados (SM1223 DI8/DQ8 en %I12.x/%Q12.x + SM1234 AI4/AQ2)
+   "DB_IO".VfdReady[1] := %I12.0;
+   "DB_IO".VfdFault[1] := %I12.1;
+   "DB_IO".VfdReady[2] := %I12.2;
+   "DB_IO".VfdFault[2] := %I12.3;
+   "DB_IO".VfdReady[3] := %I12.4;
+   "DB_IO".VfdFault[3] := %I12.5;
+   "DB_IO".VfdAiFrecuencia[1] := %IW96;
+   "DB_IO".VfdAiCorriente[1] := %IW98;
+
+   // --- Variador 4: SINAMICS G120 por PROFINET, telegrama estándar 1
+   "DB_IO".VfdProfinet[4] := TRUE;
+   "DB_IO".VfdZSW1[4] := %IW256;
+   "DB_IO".VfdHIW[4] := %IW258;
+END_FUNCTION
+
+// -------------------------------------------------------------- FC_Salidas
+FUNCTION "FC_Salidas" : Void
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+BEGIN
+   // --- Contactores de cintas
+   %Q0.0 := "DB_IO".CintaMotor[1];
+   %Q0.1 := "DB_IO".CintaMotor[2];
+   %Q0.2 := "DB_IO".CintaMotor[3];
+   %Q8.0 := "DB_IO".CintaMotor[4];
+   %Q8.1 := "DB_IO".CintaMotor[5];
+   %Q8.2 := "DB_IO".CintaMotor[6];
+
+   // --- Variadores cableados
+   %Q12.0 := "DB_IO".VfdRun[1];
+   %Q12.1 := "DB_IO".VfdRev[1];
+   %Q12.2 := "DB_IO".VfdReset[1];
+   %Q12.3 := "DB_IO".VfdRun[2];
+   %Q12.4 := "DB_IO".VfdRev[2];
+   %Q12.5 := "DB_IO".VfdRun[3];
+   %Q12.6 := "DB_IO".VfdRev[3];
+   %QW64 := "DB_IO".VfdAQ[1];     // AQ 4-20 mA (cableado original)
+   %QW66 := "DB_IO".VfdAQ[2];
+   %QW68 := "DB_IO".VfdAQ[3];
+
+   // --- Variador 4 PROFINET
+   %QW256 := "DB_IO".VfdSTW1[4];
+   %QW258 := "DB_IO".VfdHSW[4];
+END_FUNCTION
+
+// ---------------------------------------------------------------- FB_Planta
+FUNCTION_BLOCK "FB_Planta"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR
+      fbCinta : Array[1..16] of "FB_Cinta";
+      fbTemp : Array[1..16] of "FB_Temperatura";
+      fbVfd : Array[1..16] of "FB_Variador";
+      fbSecuencia : "FB_Secuencia";
+      disparoTemp : Array[1..16] of Bool;
+      falloVfd : Array[1..16] of Bool;
+   END_VAR
+   VAR_TEMP
+      i : Int;
+      c : Int;
+      n : Int;
+      permiso : Bool;
+      emergencia : Bool;
+      sim : Bool;
+   END_VAR
+
+BEGIN
+   #n := LIMIT(MN := 1, IN := "DB_General".NumCintas, MX := 16);
+   #sim := "DB_General".SimulacionActiva;
+   #emergencia := "DB_IO".Emergencia OR "DB_General".CmdEmergenciaHMI;
+   "DB_General".Emergencia := #emergencia;
+
+   // --- Rearme general
+   IF "DB_General".CmdResetGeneral THEN
+      FOR #i := 1 TO 16 DO
+         "DB_Cintas".Cinta[#i].CmdReset := TRUE;
+         "DB_Variadores".Variador[#i].CmdReset := TRUE;
+      END_FOR;
+      "DB_General".CmdResetGeneral := FALSE;
+   END_IF;
+
+   // --- Temperaturas -> disparos por cinta
+   FOR #i := 1 TO 16 DO
+      #disparoTemp[#i] := FALSE;
+      #falloVfd[#i] := FALSE;
+   END_FOR;
+   FOR #i := 1 TO 16 DO
+      #fbTemp[#i](Raw := "DB_IO".TempRaw[#i],
+                  Datos := "DB_Temperaturas".Sensor[#i]);
+      #c := USINT_TO_INT("DB_Temperaturas".Sensor[#i].CintaAsociada);
+      IF #c >= 1 AND #c <= 16 AND "DB_Temperaturas".Sensor[#i].Disparo THEN
+         #disparoTemp[#c] := TRUE;
+      END_IF;
+      // Fallo de variadores esclavos (estado del ciclo anterior)
+      #c := USINT_TO_INT("DB_Variadores".Variador[#i].CintaAsociada);
+      IF #c >= 1 AND #c <= 16 AND "DB_Variadores".Variador[#i].Fault THEN
+         #falloVfd[#c] := TRUE;
+      END_IF;
+   END_FOR;
+
+   // --- Secuencia automática
+   #fbSecuencia(Emergencia := #emergencia);
+
+   // --- Cintas: de aguas abajo (N) a aguas arriba (1).
+   //     Permiso = siguiente cinta habilitada aguas abajo en marcha.
+   #permiso := TRUE;
+   FOR #i := 16 TO 1 BY -1 DO
+      #fbCinta[#i](I_SensorEntrada := "DB_IO".CintaSensorEntrada[#i],
+                   I_SensorSalida := "DB_IO".CintaSensorSalida[#i],
+                   I_TermicoOK := "DB_IO".CintaTermicoOK[#i] OR #sim,
+                   Permiso := #permiso,
+                   ParoExterno := #emergencia OR #i > #n,
+                   DisparoTemp := #disparoTemp[#i],
+                   FalloVariador := #falloVfd[#i],
+                   Simulacion := #sim,
+                   Datos := "DB_Cintas".Cinta[#i]);
+      "DB_IO".CintaMotor[#i] := #fbCinta[#i].Q_Motor;
+      IF #i <= #n AND "DB_Cintas".Cinta[#i].Habilitada THEN
+         #permiso := "DB_Cintas".Cinta[#i].Running;
+      END_IF;
+   END_FOR;
+
+   // --- Variadores
+   FOR #i := 1 TO 16 DO
+      #c := USINT_TO_INT("DB_Variadores".Variador[#i].CintaAsociada);
+      #fbVfd[#i](Esclavo := #c >= 1 AND #c <= 16,
+                 RunCinta := #c >= 1 AND #c <= 16 AND "DB_Cintas".Cinta[LIMIT(MN := 1, IN := #c, MX := 16)].Running,
+                 Paro := #emergencia,
+                 UsarProfinet := "DB_IO".VfdProfinet[#i],
+                 Simulacion := #sim,
+                 I_Ready := "DB_IO".VfdReady[#i],
+                 I_Fault := "DB_IO".VfdFault[#i],
+                 AI_Frecuencia := "DB_IO".VfdAiFrecuencia[#i],
+                 AI_Corriente := "DB_IO".VfdAiCorriente[#i],
+                 CorrienteMaxA := "DB_IO".VfdCorrienteMaxA[#i],
+                 ZSW1 := "DB_IO".VfdZSW1[#i],
+                 HIW := "DB_IO".VfdHIW[#i],
+                 CodigoFallo := 0,
+                 Datos := "DB_Variadores".Variador[#i]);
+      "DB_IO".VfdRun[#i] := #fbVfd[#i].Q_Run;
+      "DB_IO".VfdRev[#i] := #fbVfd[#i].Q_Rev;
+      "DB_IO".VfdReset[#i] := #fbVfd[#i].Q_Reset;
+      "DB_IO".VfdAQ[#i] := #fbVfd[#i].AQ_Setpoint;
+      "DB_IO".VfdSTW1[#i] := #fbVfd[#i].STW1;
+      "DB_IO".VfdHSW[#i] := #fbVfd[#i].HSW;
+   END_FOR;
+END_FUNCTION_BLOCK
+
+DATA_BLOCK "iDB_Planta"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+NON_RETAIN
+"FB_Planta"
+BEGIN
+END_DATA_BLOCK
+
+// ---------------------------------------------------------------------- OB1
+ORGANIZATION_BLOCK "Main"
+TITLE = "Main Program Sweep (Cycle)"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+BEGIN
+   "FC_Entradas"();
+   "iDB_Planta"();
+   "FC_Salidas"();
+END_ORGANIZATION_BLOCK

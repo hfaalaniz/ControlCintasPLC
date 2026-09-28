@@ -1,0 +1,340 @@
+// =============================================================================
+//  ControlCintasPLC - Bloques de función (SCL) para S7-1200 FW >= 4.2 / TIA V16
+//  Orden de compilación: 01_UDTs.udt -> 02_DBs.db -> 03_FBs.scl -> 04_Main.scl
+// =============================================================================
+
+// ------------------------------------------------------------------ FB_Cinta
+FUNCTION_BLOCK "FB_Cinta"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      I_SensorEntrada : Bool;
+      I_SensorSalida : Bool;
+      I_TermicoOK : Bool;      // contacto NA del guardamotor (TRUE = OK)
+      Permiso : Bool;          // cinta aguas abajo en marcha
+      ParoExterno : Bool;      // emergencia / cinta fuera de rango
+      DisparoTemp : Bool;      // disparo por temperatura asociada
+      FalloVariador : Bool;    // variador esclavo en fallo
+      Simulacion : Bool;
+   END_VAR
+   VAR_OUTPUT
+      Q_Motor : Bool;
+   END_VAR
+   VAR_IN_OUT
+      Datos : "UDT_Cinta";
+   END_VAR
+   VAR
+      tonAtasco : TON_TIME;
+      rtSalida : R_TRIG;
+   END_VAR
+
+BEGIN
+   // Sensores reales o simulados desde la HMI
+   IF #Simulacion THEN
+      #Datos.SensorEntrada := #Datos.SimSensorEntrada;
+      #Datos.SensorSalida := #Datos.SimSensorSalida;
+   ELSE
+      #Datos.SensorEntrada := #I_SensorEntrada;
+      #Datos.SensorSalida := #I_SensorSalida;
+   END_IF;
+   #Datos.Permiso := #Permiso;
+   #Datos.Termico := NOT #I_TermicoOK;
+
+   // Atasco: sensor de salida ocupado más tiempo del configurado con la cinta en marcha
+   #tonAtasco(IN := #Datos.Running AND #Datos.SensorSalida AND #Datos.TiempoAtasco_s > 0,
+              PT := DINT_TO_TIME(INT_TO_DINT(#Datos.TiempoAtasco_s) * 1000));
+   IF #tonAtasco.Q THEN
+      #Datos.Atasco := TRUE;
+   END_IF;
+
+   // Fallo enclavado
+   IF #Datos.Termico OR #Datos.Atasco OR #DisparoTemp OR #FalloVariador THEN
+      #Datos.Fault := TRUE;
+   END_IF;
+
+   // Rearme: sólo si la causa desapareció
+   IF #Datos.CmdReset THEN
+      IF NOT #Datos.SensorSalida THEN
+         #Datos.Atasco := FALSE;
+      END_IF;
+      IF NOT (#Datos.Termico OR #Datos.Atasco OR #DisparoTemp OR #FalloVariador) THEN
+         #Datos.Fault := FALSE;
+      END_IF;
+      #Datos.CmdReset := FALSE;
+   END_IF;
+
+   // Fallo o paro externo anulan la orden: exige una nueva orden de marcha
+   IF #Datos.Fault OR #ParoExterno THEN
+      #Datos.CmdOn := FALSE;
+   END_IF;
+
+   #Datos.Running := #Datos.CmdOn AND #Permiso AND NOT #Datos.Fault AND NOT #ParoExterno;
+   #Q_Motor := #Datos.Running;
+
+   // Contador de piezas (flanco de subida del sensor de salida)
+   #rtSalida(CLK := #Datos.SensorSalida);
+   IF #rtSalida.Q THEN
+      #Datos.Contador := #Datos.Contador + 1;
+   END_IF;
+END_FUNCTION_BLOCK
+
+// ------------------------------------------------------------ FB_Temperatura
+FUNCTION_BLOCK "FB_Temperatura"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Raw : Int;                  // SM1231 RTD Pt100: °C x 10
+      Histeresis : Real := 2.0;   // °C
+   END_VAR
+   VAR_IN_OUT
+      Datos : "UDT_Temperatura";
+   END_VAR
+
+BEGIN
+   #Datos.Raw := #Raw;
+
+   IF NOT #Datos.Habilitado THEN
+      #Datos.Aviso := FALSE;
+      #Datos.Disparo := FALSE;
+      #Datos.RoturaSensor := FALSE;
+      RETURN;
+   END_IF;
+
+   // 32767 = rebase / rotura de hilo, -32768 = subdesbordamiento
+   #Datos.RoturaSensor := (#Raw = 32767) OR (#Raw = -32768);
+
+   IF #Datos.RoturaSensor THEN
+      #Datos.Disparo := TRUE;     // seguridad positiva: sensor roto = disparo
+      RETURN;
+   END_IF;
+
+   #Datos.Valor := INT_TO_REAL(#Raw) / 10.0;
+
+   IF #Datos.Valor >= #Datos.LimiteAviso THEN
+      #Datos.Aviso := TRUE;
+   ELSIF #Datos.Valor < #Datos.LimiteAviso - #Histeresis THEN
+      #Datos.Aviso := FALSE;
+   END_IF;
+
+   IF #Datos.Valor >= #Datos.LimiteDisparo THEN
+      #Datos.Disparo := TRUE;
+   ELSIF #Datos.Valor < #Datos.LimiteDisparo - #Histeresis THEN
+      #Datos.Disparo := FALSE;
+   END_IF;
+END_FUNCTION_BLOCK
+
+// --------------------------------------------------------------- FB_Variador
+//  Soporta dos modos a la vez (se usa el que esté cableado):
+//   - Cableado: DO marcha/inversión/reset + AQ 4-20 mA consigna + AI realimentación
+//   - PROFINET SINAMICS telegrama estándar 1: STW1/HSW  ->  ZSW1/HIW
+FUNCTION_BLOCK "FB_Variador"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Esclavo : Bool;             // sigue a la cinta asociada
+      RunCinta : Bool;
+      Paro : Bool;                // emergencia
+      UsarProfinet : Bool;
+      Simulacion : Bool;
+      I_Ready : Bool;
+      I_Fault : Bool;
+      AI_Frecuencia : Int;        // 0..27648 = 0..FrecMax
+      AI_Corriente : Int;         // 0..27648 = 0..CorrienteMaxA
+      CorrienteMaxA : Real := 10.0;
+      ZSW1 : Word;
+      HIW : Int;                  // 16384 = FrecMax
+      CodigoFallo : Int;
+   END_VAR
+   VAR_OUTPUT
+      Q_Run : Bool;
+      Q_Rev : Bool;
+      Q_Reset : Bool;
+      AQ_Setpoint : Int;          // 0..27648
+      STW1 : Word;
+      HSW : Int;                  // -16384..16384
+   END_VAR
+   VAR_IN_OUT
+      Datos : "UDT_Variador";
+   END_VAR
+   VAR
+      tpReset : TP_TIME;
+      memRuntime : LReal;
+      spRampa : Real;
+   END_VAR
+   VAR_TEMP
+      dt : Real;
+      objetivo : Real;
+      paso : Real;
+      run : Bool;
+   END_VAR
+
+BEGIN
+   #dt := LREAL_TO_REAL(RUNTIME(#memRuntime));
+   IF #dt < 0.0 OR #dt > 1.0 THEN
+      #dt := 0.0;
+   END_IF;
+
+   IF #Datos.FrecMaxHz <= 0.0 THEN
+      #Datos.FrecMaxHz := 50.0;
+   END_IF;
+
+   // --- Estado del variador
+   IF #Simulacion THEN
+      #Datos.Ready := TRUE;
+      #Datos.Fault := FALSE;
+      #Datos.Warning := FALSE;
+   ELSIF #UsarProfinet THEN
+      #Datos.Ready := #ZSW1.%X1;
+      #Datos.Fault := #ZSW1.%X3;
+      #Datos.Warning := #ZSW1.%X7;
+   ELSE
+      #Datos.Ready := #I_Ready;
+      #Datos.Fault := #I_Fault;
+      #Datos.Warning := FALSE;
+   END_IF;
+   #Datos.CodigoFallo := SEL(G := #Datos.Fault, IN0 := 0, IN1 := #CodigoFallo);
+
+   // --- Orden de marcha
+   IF #Esclavo THEN
+      #Datos.CmdRun := #RunCinta;
+   ELSIF #Paro OR #Datos.Fault THEN
+      #Datos.CmdRun := FALSE;
+   END_IF;
+   #run := #Datos.CmdRun AND #Datos.Ready AND NOT #Datos.Fault AND NOT #Paro;
+
+   // --- Rampa software de consigna
+   IF #run THEN
+      #objetivo := LIMIT(MN := 0.0, IN := #Datos.SetpointHz, MX := #Datos.FrecMaxHz);
+      #paso := #Datos.FrecMaxHz / MAX(IN1 := #Datos.Rampa_s, IN2 := 0.1) * #dt;
+      IF #spRampa < #objetivo THEN
+         #spRampa := MIN(IN1 := #spRampa + #paso, IN2 := #objetivo);
+      ELSE
+         #spRampa := MAX(IN1 := #spRampa - #paso, IN2 := #objetivo);
+      END_IF;
+   ELSE
+      #spRampa := 0.0;
+   END_IF;
+
+   // --- Reset: pulso de 500 ms
+   #tpReset(IN := #Datos.CmdReset, PT := T#500MS);
+   #Datos.CmdReset := FALSE;
+
+   // --- Salidas cableadas
+   #Q_Run := #run;
+   #Q_Rev := #run AND #Datos.CmdReverse;
+   #Q_Reset := #tpReset.Q;
+   #AQ_Setpoint := REAL_TO_INT(#spRampa / #Datos.FrecMaxHz * 27648.0);
+
+   // --- Salidas PROFINET (telegrama 1)
+   IF #tpReset.Q THEN
+      #STW1 := 16#04FE;           // OFF1 + acuse de fallo (bit 7)
+   ELSIF #run THEN
+      #STW1 := 16#047F;           // ON
+   ELSE
+      #STW1 := 16#047E;           // OFF1
+   END_IF;
+   #HSW := REAL_TO_INT(#spRampa / #Datos.FrecMaxHz * 16384.0);
+   IF #Datos.CmdReverse THEN
+      #HSW := -#HSW;
+   END_IF;
+
+   // --- Realimentación
+   IF #Simulacion THEN
+      #Datos.ActualHz := #spRampa;
+      #Datos.Running := #run;
+   ELSIF #UsarProfinet THEN
+      #Datos.ActualHz := ABS(INT_TO_REAL(#HIW)) * #Datos.FrecMaxHz / 16384.0;
+      #Datos.Running := #ZSW1.%X2;
+   ELSE
+      #Datos.ActualHz := INT_TO_REAL(#AI_Frecuencia) * #Datos.FrecMaxHz / 27648.0;
+      #Datos.Running := #run;
+   END_IF;
+   #Datos.CorrienteA := INT_TO_REAL(#AI_Corriente) * #CorrienteMaxA / 27648.0;
+END_FUNCTION_BLOCK
+
+// -------------------------------------------------------------- FB_Secuencia
+//  Arranque aguas abajo -> aguas arriba (N..1), parada 1..N, retardo configurable
+FUNCTION_BLOCK "FB_Secuencia"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Emergencia : Bool;
+   END_VAR
+   VAR
+      tonPaso : TON_TIME;
+      estado : Int;               // 0 reposo, 1 arrancando, 2 parando
+      idx : Int;
+      esperando : Bool;
+   END_VAR
+   VAR_TEMP
+      n : Int;
+      retardo : Time;
+   END_VAR
+
+BEGIN
+   #n := LIMIT(MN := 1, IN := "DB_General".NumCintas, MX := 16);
+   #retardo := DINT_TO_TIME(MAX(IN1 := "DB_General".RetardoSecuencia_ms, IN2 := 0));
+
+   IF #Emergencia THEN
+      #estado := 0;
+      #esperando := FALSE;
+      "DB_General".SecuenciaActiva := FALSE;
+      "DB_General".CmdMarchaSecuencia := FALSE;
+      "DB_General".CmdParadaSecuencia := FALSE;
+   END_IF;
+
+   IF "DB_General".CmdMarchaSecuencia THEN
+      "DB_General".CmdMarchaSecuencia := FALSE;
+      #estado := 1;
+      #idx := #n;
+      #tonPaso(IN := FALSE, PT := #retardo);
+   END_IF;
+
+   IF "DB_General".CmdParadaSecuencia THEN
+      "DB_General".CmdParadaSecuencia := FALSE;
+      #estado := 2;
+      #idx := 1;
+      #esperando := FALSE;
+      #tonPaso(IN := FALSE, PT := #retardo);
+   END_IF;
+
+   CASE #estado OF
+      1:  // Arranque
+         IF #idx < 1 THEN
+            #estado := 0;
+            "DB_General".SecuenciaActiva := TRUE;
+         ELSIF NOT "DB_Cintas".Cinta[#idx].Habilitada THEN
+            #idx := #idx - 1;
+         ELSE
+            "DB_Cintas".Cinta[#idx].CmdOn := TRUE;
+            #tonPaso(IN := TRUE, PT := #retardo);
+            IF #tonPaso.Q THEN
+               #tonPaso(IN := FALSE, PT := #retardo);
+               #idx := #idx - 1;
+            END_IF;
+         END_IF;
+
+      2:  // Parada
+         IF #idx > #n THEN
+            #estado := 0;
+            "DB_General".SecuenciaActiva := FALSE;
+         ELSIF NOT #esperando AND NOT "DB_Cintas".Cinta[#idx].CmdOn THEN
+            #idx := #idx + 1;                 // ya parada: siguiente sin esperar
+         ELSE
+            "DB_Cintas".Cinta[#idx].CmdOn := FALSE;
+            #esperando := TRUE;
+            #tonPaso(IN := TRUE, PT := #retardo);
+            IF #tonPaso.Q THEN
+               #tonPaso(IN := FALSE, PT := #retardo);
+               #esperando := FALSE;
+               #idx := #idx + 1;
+            END_IF;
+         END_IF;
+   END_CASE;
+
+   IF #estado = 0 THEN
+      "DB_General".PasoSecuencia := 0;
+   ELSE
+      "DB_General".PasoSecuencia := #idx;
+   END_IF;
+END_FUNCTION_BLOCK

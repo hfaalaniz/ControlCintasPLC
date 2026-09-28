@@ -1,0 +1,63 @@
+// =============================================================================
+//  ControlCintasPLC - Tipos de datos (UDT)
+//  Importar en TIA Portal: Fuentes externas > Agregar archivo > Generar bloques
+//  IMPORTANTE: el mapa de offsets debe coincidir con ControlCintasPLC/Plc/DbLayout.cs
+// =============================================================================
+
+// ---------------------------------------------------------------- UDT_Cinta (8 bytes)
+TYPE "UDT_Cinta"
+VERSION : 0.1
+   STRUCT
+      CmdOn : Bool;              // 0.0 HMI/Secuencia -> PLC: orden de marcha
+      CmdReset : Bool;           // 0.1 HMI -> PLC: rearme de fallo (PLC lo borra)
+      Running : Bool;            // 0.2 PLC -> HMI: motor en marcha
+      Fault : Bool;              // 0.3 PLC -> HMI: fallo (térmico / atasco / disparo temp.)
+      SensorEntrada : Bool;      // 0.4 PLC -> HMI: sensor de presencia entrada
+      SensorSalida : Bool;       // 0.5 PLC -> HMI: sensor de presencia salida
+      Atasco : Bool;             // 0.6 PLC -> HMI: atasco detectado
+      Habilitada : Bool;         // 0.7 HMI -> PLC: incluida en la secuencia automática
+      SimSensorEntrada : Bool;   // 1.0 HMI -> PLC: simulación sensor entrada (PLCSIM)
+      SimSensorSalida : Bool;    // 1.1 HMI -> PLC: simulación sensor salida (PLCSIM)
+      Permiso : Bool;            // 1.2 PLC -> HMI: cinta aguas abajo en marcha
+      Termico : Bool;            // 1.3 PLC -> HMI: disparo guardamotor
+      TiempoAtasco_s : Int;      // 2   HMI -> PLC: tiempo máx. sensor ocupado
+      Contador : DInt;           // 4   PLC -> HMI: piezas contadas en la salida
+   END_STRUCT;
+END_TYPE
+
+// ---------------------------------------------------------- UDT_Temperatura (16 bytes)
+TYPE "UDT_Temperatura"
+VERSION : 0.1
+   STRUCT
+      Raw : Int;                 // 0   valor crudo SM1231 RTD (°C x10, 32767 = rotura)
+      Valor : Real;              // 2   °C
+      LimiteAviso : Real;        // 6   HMI -> PLC
+      LimiteDisparo : Real;      // 10  HMI -> PLC
+      Aviso : Bool;              // 14.0
+      Disparo : Bool;            // 14.1 detiene la cinta asociada
+      RoturaSensor : Bool;       // 14.2
+      Habilitado : Bool;         // 14.3 HMI -> PLC
+      CintaAsociada : USInt;     // 15  HMI -> PLC: 0 = ninguna, 1..16
+   END_STRUCT;
+END_TYPE
+
+// ------------------------------------------------------------ UDT_Variador (24 bytes)
+TYPE "UDT_Variador"
+VERSION : 0.1
+   STRUCT
+      CmdRun : Bool;             // 0.0 HMI -> PLC (ignorado si CintaAsociada > 0)
+      CmdReverse : Bool;         // 0.1 HMI -> PLC
+      CmdReset : Bool;           // 0.2 HMI -> PLC (PLC lo borra)
+      Running : Bool;            // 0.3 PLC -> HMI
+      Fault : Bool;              // 0.4 PLC -> HMI
+      Ready : Bool;              // 0.5 PLC -> HMI
+      Warning : Bool;            // 0.6 PLC -> HMI
+      CintaAsociada : USInt;     // 1   HMI -> PLC: 0 = manual, 1..16 esclavo de cinta
+      SetpointHz : Real;         // 2   HMI -> PLC
+      ActualHz : Real;           // 6   PLC -> HMI
+      CorrienteA : Real;         // 10  PLC -> HMI
+      FrecMaxHz : Real;          // 14  HMI -> PLC: escalado (27648 / 16384 = FrecMax)
+      Rampa_s : Real;            // 18  HMI -> PLC: 0 -> FrecMax (rampa software)
+      CodigoFallo : Int;         // 22  PLC -> HMI
+   END_STRUCT;
+END_TYPE
