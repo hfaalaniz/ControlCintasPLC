@@ -1,0 +1,38 @@
+{
+  "Plc": {
+    "Ip": "192.168.1.11",
+    "Puerto": 102,
+    "Rack": 0,
+    "Slot": 1,
+    "DbGeneral": 10,
+    "DbCintas": 11,
+    "DbTemperaturas": 12,
+    "DbVariadores": 13
+  },
+  "IntervaloLecturaMs": 500,
+  "RetardoSecuenciaMs": 1000,
+  "Cintas": [
+    { "Nombre": "Cinta 1 - Alimentación", "Habilitada": true, "TiempoAtascoS": 10 },
+    { "Nombre": "Cinta 2 - Transferencia", "Habilitada": true, "TiempoAtascoS": 10 },
+    { "Nombre": "Cinta 3 - Descarga", "Habilitada": true, "TiempoAtascoS": 10 },
+    { "Nombre": "Cinta 4 - Clasificación", "Habilitada": true, "TiempoAtascoS": 15 },
+    { "Nombre": "Cinta 5 - Acumulación", "Habilitada": true, "TiempoAtascoS": 20 },
+    { "Nombre": "Cinta 6 - Expedición", "Habilitada": true, "TiempoAtascoS": 15 }
+  ],
+  "Temperaturas": [
+    { "Nombre": "Motor cinta 1", "Habilitado": true, "LimiteAviso": 70, "LimiteDisparo": 85, "CintaAsociada": 1, "EscalaMaxima": 150 },
+    { "Nombre": "Motor cinta 2", "Habilitado": true, "LimiteAviso": 70, "LimiteDisparo": 85, "CintaAsociada": 2, "EscalaMaxima": 150 },
+    { "Nombre": "Motor cinta 3", "Habilitado": true, "LimiteAviso": 70, "LimiteDisparo": 85, "CintaAsociada": 3, "EscalaMaxima": 150 },
+    { "Nombre": "Motor cinta 4", "Habilitado": true, "LimiteAviso": 70, "LimiteDisparo": 85, "CintaAsociada": 4, "EscalaMaxima": 150 },
+    { "Nombre": "Rodamiento cinta 5", "Habilitado": true, "LimiteAviso": 60, "LimiteDisparo": 80, "CintaAsociada": 5, "EscalaMaxima": 150 },
+    { "Nombre": "Rodamiento cinta 6", "Habilitado": true, "LimiteAviso": 60, "LimiteDisparo": 80, "CintaAsociada": 6, "EscalaMaxima": 150 },
+    { "Nombre": "Armario eléctrico", "Habilitado": true, "LimiteAviso": 40, "LimiteDisparo": 50, "CintaAsociada": 0, "EscalaMaxima": 80 },
+    { "Nombre": "Ambiente nave", "Habilitado": true, "LimiteAviso": 35, "LimiteDisparo": 45, "CintaAsociada": 0, "EscalaMaxima": 60 }
+  ],
+  "Variadores": [
+    { "Nombre": "VFD Cinta 1", "CintaAsociada": 1, "FrecMaxHz": 50, "SetpointHz": 40, "RampaS": 5 },
+    { "Nombre": "VFD Cinta 2", "CintaAsociada": 2, "FrecMaxHz": 50, "SetpointHz": 45, "RampaS": 5 },
+    { "Nombre": "VFD Cinta 3", "CintaAsociada": 3, "FrecMaxHz": 50, "SetpointHz": 50, "RampaS": 5 },
+    { "Nombre": "G120 Cinta 4 (PROFINET)", "CintaAsociada": 4, "FrecMaxHz": 60, "SetpointHz": 50, "RampaS": 3 }
+  ]
+}

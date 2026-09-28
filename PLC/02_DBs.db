@@ -1,0 +1,56 @@
+// =============================================================================
+//  ControlCintasPLC - Bloques de datos de intercambio con la HMI
+//  Acceso NO optimizado (direccionamiento absoluto requerido por S7netplus).
+//  Para ampliar: subir MAX (16) aquí y DbLayout.MaxElementos en C#.
+// =============================================================================
+
+DATA_BLOCK "DB_General"          // DB10 (10 bytes)
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR
+      Emergencia : Bool;           // 0.0 PLC -> HMI: paro de emergencia activo
+      CmdEmergenciaHMI : Bool;     // 0.1 HMI -> PLC: seta de emergencia desde HMI
+      CmdResetGeneral : Bool;      // 0.2 HMI -> PLC (PLC lo borra)
+      SimulacionActiva : Bool;     // 0.3 HMI -> PLC: usar bits Sim* de las cintas
+      SecuenciaActiva : Bool;      // 0.4 PLC -> HMI
+      CmdMarchaSecuencia : Bool;   // 0.5 HMI -> PLC (PLC lo borra)
+      CmdParadaSecuencia : Bool;   // 0.6 HMI -> PLC (PLC lo borra)
+      RetardoSecuencia_ms : DInt;  // 2   HMI -> PLC
+      NumCintas : Int;             // 6   HMI -> PLC (1..16)
+      PasoSecuencia : Int;         // 8   PLC -> HMI
+   END_VAR
+BEGIN
+   RetardoSecuencia_ms := 1000;
+   NumCintas := 3;
+END_DATA_BLOCK
+
+DATA_BLOCK "DB_Cintas"           // DB11 (16 x 8 = 128 bytes)
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR
+      Cinta : Array[1..16] of "UDT_Cinta";
+   END_VAR
+BEGIN
+END_DATA_BLOCK
+
+DATA_BLOCK "DB_Temperaturas"     // DB12 (16 x 16 = 256 bytes)
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR
+      Sensor : Array[1..16] of "UDT_Temperatura";
+   END_VAR
+BEGIN
+END_DATA_BLOCK
+
+DATA_BLOCK "DB_Variadores"       // DB13 (16 x 24 = 384 bytes)
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR
+      Variador : Array[1..16] of "UDT_Variador";
+   END_VAR
+BEGIN
+END_DATA_BLOCK

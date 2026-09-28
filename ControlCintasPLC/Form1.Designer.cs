@@ -1,4 +1,4 @@
-﻿namespace ControlCintasPLC
+namespace ControlCintasPLC
 {
     partial class Form1
     {
@@ -13,9 +13,10 @@
         /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
+            if (disposing)
             {
-                components.Dispose();
+                components?.Dispose();
+                _plc.Dispose();
             }
             base.Dispose(disposing);
         }
@@ -29,501 +30,398 @@
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
-            btnConectar = new Button();
-            txtIP = new TextBox();
-            txtPort = new TextBox();
-            btnCinta1_ON = new Button();
-            btnCinta2_ON = new Button();
-            btnCinta3_ON = new Button();
-            grpControlCintas = new GroupBox();
-            txtDelay = new TextBox();
-            label3 = new Label();
-            lblCinta3 = new Label();
-            lblCinta2 = new Label();
-            lblCinta1 = new Label();
-            btnMarchaParada = new Button();
-            btnAplicarAQ = new Button();
-            btnDesactivarEmergencia = new Button();
-            btnEmergencia = new Button();
             grpConectar = new GroupBox();
-            label2 = new Label();
             label1 = new Label();
+            txtIP = new TextBox();
+            label2 = new Label();
+            txtPort = new TextBox();
+            btnConectar = new Button();
             btnDesconectar = new Button();
-            timerLectura = new System.Windows.Forms.Timer(components);
+            btnRecargarConfig = new Button();
+            btnEnviarConfig = new Button();
+            grpGeneral = new GroupBox();
+            btnMarchaSecuencia = new Button();
+            btnParadaSecuencia = new Button();
+            label3 = new Label();
+            numRetardo = new NumericUpDown();
+            btnAplicarRetardo = new Button();
+            btnEmergencia = new Button();
+            btnDesactivarEmergencia = new Button();
+            btnResetGeneral = new Button();
+            chkSimulacion = new CheckBox();
+            lblSecuencia = new Label();
+            tabPlanta = new TabControl();
+            tabCintas = new TabPage();
+            flpCintas = new FlowLayoutPanel();
+            tabTemperaturas = new TabPage();
+            flpTemperaturas = new FlowLayoutPanel();
+            tabVariadores = new TabPage();
+            flpVariadores = new FlowLayoutPanel();
             stBar = new StatusStrip();
-            stCinta1 = new ToolStripStatusLabel();
-            stCinta2 = new ToolStripStatusLabel();
-            stCinta3 = new ToolStripStatusLabel();
-            lblAI1 = new ToolStripStatusLabel();
-            lblAI2 = new ToolStripStatusLabel();
-            lblAI3 = new ToolStripStatusLabel();
-            lblAI4 = new ToolStripStatusLabel();
-            lblSensorCinta3On = new ToolStripStatusLabel();
-            lblSensorCinta3Off = new ToolStripStatusLabel();
-            lblSensorCinta2Extra = new ToolStripStatusLabel();
-            lblSensorCinta2Cinta3 = new ToolStripStatusLabel();
-            lblSensorCinta3Extra = new ToolStripStatusLabel();
-            lblEmergencia = new ToolStripStatusLabel();
-            btnSensorCinta1 = new Button();
-            btnSensorCinta2 = new Button();
-            btnSensorCinta3 = new Button();
-            groupBox1 = new GroupBox();
-            numericUpDownAQ4 = new NumericUpDown();
-            numericUpDownAQ3 = new NumericUpDown();
-            numericUpDownAQ2 = new NumericUpDown();
-            numericUpDownAQ1 = new NumericUpDown();
-            grpControlCintas.SuspendLayout();
+            stConexion = new ToolStripStatusLabel();
+            stEmergencia = new ToolStripStatusLabel();
+            stSecuencia = new ToolStripStatusLabel();
+            stMensaje = new ToolStripStatusLabel();
+            timerLectura = new System.Windows.Forms.Timer(components);
             grpConectar.SuspendLayout();
+            grpGeneral.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)numRetardo).BeginInit();
+            tabPlanta.SuspendLayout();
+            tabCintas.SuspendLayout();
+            tabTemperaturas.SuspendLayout();
+            tabVariadores.SuspendLayout();
             stBar.SuspendLayout();
-            groupBox1.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)numericUpDownAQ4).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)numericUpDownAQ3).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)numericUpDownAQ2).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)numericUpDownAQ1).BeginInit();
             SuspendLayout();
-            // 
+            //
+            // grpConectar
+            //
+            grpConectar.Controls.Add(label1);
+            grpConectar.Controls.Add(txtIP);
+            grpConectar.Controls.Add(label2);
+            grpConectar.Controls.Add(txtPort);
+            grpConectar.Controls.Add(btnConectar);
+            grpConectar.Controls.Add(btnDesconectar);
+            grpConectar.Controls.Add(btnRecargarConfig);
+            grpConectar.Controls.Add(btnEnviarConfig);
+            grpConectar.Dock = DockStyle.Top;
+            grpConectar.Name = "grpConectar";
+            grpConectar.Size = new Size(1084, 58);
+            grpConectar.TabIndex = 0;
+            grpConectar.TabStop = false;
+            grpConectar.Text = "Conexión al PLC S7-1200";
+            //
+            // label1
+            //
+            label1.AutoSize = true;
+            label1.Location = new Point(10, 26);
+            label1.Name = "label1";
+            label1.Text = "Dirección IP:";
+            //
+            // txtIP
+            //
+            txtIP.Location = new Point(90, 22);
+            txtIP.Name = "txtIP";
+            txtIP.Size = new Size(120, 23);
+            txtIP.TabIndex = 1;
+            //
+            // label2
+            //
+            label2.AutoSize = true;
+            label2.Location = new Point(222, 26);
+            label2.Name = "label2";
+            label2.Text = "Puerto:";
+            //
+            // txtPort
+            //
+            txtPort.Location = new Point(272, 22);
+            txtPort.Name = "txtPort";
+            txtPort.Size = new Size(55, 23);
+            txtPort.TabIndex = 2;
+            //
             // btnConectar
-            // 
-            btnConectar.Location = new Point(447, 22);
+            //
+            btnConectar.Location = new Point(340, 21);
             btnConectar.Name = "btnConectar";
-            btnConectar.Size = new Size(75, 23);
-            btnConectar.TabIndex = 0;
+            btnConectar.Size = new Size(90, 26);
+            btnConectar.TabIndex = 3;
             btnConectar.Text = "Conectar";
             btnConectar.UseVisualStyleBackColor = true;
             btnConectar.Click += btnConectar_Click;
-            // 
-            // txtIP
-            // 
-            txtIP.Location = new Point(102, 22);
-            txtIP.Name = "txtIP";
-            txtIP.Size = new Size(148, 23);
-            txtIP.TabIndex = 1;
-            txtIP.Text = "192.168.1.11";
-            // 
-            // txtPort
-            // 
-            txtPort.Location = new Point(321, 22);
-            txtPort.Name = "txtPort";
-            txtPort.Size = new Size(100, 23);
-            txtPort.TabIndex = 2;
-            txtPort.Text = "102";
-            // 
-            // btnCinta1_ON
-            // 
-            btnCinta1_ON.Location = new Point(8, 46);
-            btnCinta1_ON.Name = "btnCinta1_ON";
-            btnCinta1_ON.Size = new Size(108, 54);
-            btnCinta1_ON.TabIndex = 0;
-            btnCinta1_ON.Text = "Encender Cinta 1";
-            btnCinta1_ON.UseVisualStyleBackColor = true;
-            btnCinta1_ON.Click += btnCinta1_Click;
-            // 
-            // btnCinta2_ON
-            // 
-            btnCinta2_ON.Location = new Point(122, 46);
-            btnCinta2_ON.Name = "btnCinta2_ON";
-            btnCinta2_ON.Size = new Size(108, 54);
-            btnCinta2_ON.TabIndex = 0;
-            btnCinta2_ON.Text = "Encender Cinta 2";
-            btnCinta2_ON.UseVisualStyleBackColor = true;
-            btnCinta2_ON.Click += btnCinta2_Click;
-            // 
-            // btnCinta3_ON
-            // 
-            btnCinta3_ON.Location = new Point(236, 46);
-            btnCinta3_ON.Name = "btnCinta3_ON";
-            btnCinta3_ON.Size = new Size(108, 54);
-            btnCinta3_ON.TabIndex = 0;
-            btnCinta3_ON.Text = "Encender Cinta 3";
-            btnCinta3_ON.UseVisualStyleBackColor = true;
-            btnCinta3_ON.Click += btnCinta3_Click;
-            // 
-            // grpControlCintas
-            // 
-            grpControlCintas.Controls.Add(txtDelay);
-            grpControlCintas.Controls.Add(label3);
-            grpControlCintas.Controls.Add(lblCinta3);
-            grpControlCintas.Controls.Add(lblCinta2);
-            grpControlCintas.Controls.Add(lblCinta1);
-            grpControlCintas.Controls.Add(btnMarchaParada);
-            grpControlCintas.Controls.Add(btnAplicarAQ);
-            grpControlCintas.Controls.Add(btnCinta1_ON);
-            grpControlCintas.Controls.Add(btnCinta2_ON);
-            grpControlCintas.Controls.Add(btnDesactivarEmergencia);
-            grpControlCintas.Controls.Add(btnEmergencia);
-            grpControlCintas.Controls.Add(btnCinta3_ON);
-            grpControlCintas.Location = new Point(12, 81);
-            grpControlCintas.Name = "grpControlCintas";
-            grpControlCintas.Size = new Size(675, 112);
-            grpControlCintas.TabIndex = 3;
-            grpControlCintas.TabStop = false;
-            grpControlCintas.Text = "Envío de comandos al PLC";
-            // 
-            // txtDelay
-            // 
-            txtDelay.Location = new Point(456, 48);
-            txtDelay.Name = "txtDelay";
-            txtDelay.Size = new Size(48, 23);
-            txtDelay.TabIndex = 2;
-            txtDelay.Text = "102";
-            // 
-            // label3
-            // 
-            label3.AutoSize = true;
-            label3.Location = new Point(456, 25);
-            label3.Name = "label3";
-            label3.Size = new Size(47, 15);
-            label3.TabIndex = 1;
-            label3.Text = "Tiempo";
-            // 
-            // lblCinta3
-            // 
-            lblCinta3.AutoSize = true;
-            lblCinta3.Location = new Point(246, 25);
-            lblCinta3.Name = "lblCinta3";
-            lblCinta3.Size = new Size(86, 15);
-            lblCinta3.TabIndex = 1;
-            lblCinta3.Text = "Cinta 3: Parada";
-            // 
-            // lblCinta2
-            // 
-            lblCinta2.AutoSize = true;
-            lblCinta2.Location = new Point(134, 25);
-            lblCinta2.Name = "lblCinta2";
-            lblCinta2.Size = new Size(86, 15);
-            lblCinta2.TabIndex = 1;
-            lblCinta2.Text = "Cinta 2: Parada";
-            // 
-            // lblCinta1
-            // 
-            lblCinta1.AutoSize = true;
-            lblCinta1.Location = new Point(18, 25);
-            lblCinta1.Name = "lblCinta1";
-            lblCinta1.Size = new Size(86, 15);
-            lblCinta1.TabIndex = 1;
-            lblCinta1.Text = "Cinta 1: Parada";
-            // 
-            // btnMarchaParada
-            // 
-            btnMarchaParada.Location = new Point(350, 76);
-            btnMarchaParada.Name = "btnMarchaParada";
-            btnMarchaParada.Size = new Size(100, 24);
-            btnMarchaParada.TabIndex = 0;
-            btnMarchaParada.Text = "Marcha";
-            btnMarchaParada.UseVisualStyleBackColor = true;
-            btnMarchaParada.Click += btnMarchaParada_Click;
-            // 
-            // btnAplicarAQ
-            // 
-            btnAplicarAQ.Location = new Point(350, 46);
-            btnAplicarAQ.Name = "btnAplicarAQ";
-            btnAplicarAQ.Size = new Size(100, 24);
-            btnAplicarAQ.TabIndex = 0;
-            btnAplicarAQ.Text = "Aplicar AQ";
-            btnAplicarAQ.UseVisualStyleBackColor = true;
-            // 
-            // btnDesactivarEmergencia
-            // 
-            btnDesactivarEmergencia.BackColor = Color.Red;
-            btnDesactivarEmergencia.ForeColor = SystemColors.ControlText;
-            btnDesactivarEmergencia.Location = new Point(587, 46);
-            btnDesactivarEmergencia.Name = "btnDesactivarEmergencia";
-            btnDesactivarEmergencia.Size = new Size(85, 54);
-            btnDesactivarEmergencia.TabIndex = 0;
-            btnDesactivarEmergencia.Text = "Desactivar Emergencia";
-            btnDesactivarEmergencia.UseVisualStyleBackColor = false;
-            btnDesactivarEmergencia.Click += btnDesactivarEmergencia_Click;
-            // 
-            // btnEmergencia
-            // 
-            btnEmergencia.BackColor = Color.Red;
-            btnEmergencia.ForeColor = SystemColors.ControlText;
-            btnEmergencia.Location = new Point(507, 46);
-            btnEmergencia.Name = "btnEmergencia";
-            btnEmergencia.Size = new Size(77, 54);
-            btnEmergencia.TabIndex = 0;
-            btnEmergencia.Text = "Activar Emergencia";
-            btnEmergencia.UseVisualStyleBackColor = false;
-            btnEmergencia.Click += btnEmergencia_Click;
-            // 
-            // grpConectar
-            // 
-            grpConectar.Controls.Add(txtPort);
-            grpConectar.Controls.Add(txtIP);
-            grpConectar.Controls.Add(label2);
-            grpConectar.Controls.Add(label1);
-            grpConectar.Controls.Add(btnDesconectar);
-            grpConectar.Controls.Add(btnConectar);
-            grpConectar.Location = new Point(12, 12);
-            grpConectar.Name = "grpConectar";
-            grpConectar.Size = new Size(675, 63);
-            grpConectar.TabIndex = 4;
-            grpConectar.TabStop = false;
-            grpConectar.Text = "Conectar al PLC";
-            // 
-            // label2
-            // 
-            label2.AutoSize = true;
-            label2.Location = new Point(270, 26);
-            label2.Name = "label2";
-            label2.Size = new Size(45, 15);
-            label2.TabIndex = 1;
-            label2.Text = "Puerto:";
-            // 
-            // label1
-            // 
-            label1.AutoSize = true;
-            label1.Location = new Point(23, 26);
-            label1.Name = "label1";
-            label1.Size = new Size(73, 15);
-            label1.TabIndex = 1;
-            label1.Text = "Dirección IP:";
-            // 
+            //
             // btnDesconectar
-            // 
-            btnDesconectar.Location = new Point(528, 22);
+            //
+            btnDesconectar.Enabled = false;
+            btnDesconectar.Location = new Point(436, 21);
             btnDesconectar.Name = "btnDesconectar";
-            btnDesconectar.Size = new Size(100, 23);
-            btnDesconectar.TabIndex = 0;
+            btnDesconectar.Size = new Size(90, 26);
+            btnDesconectar.TabIndex = 4;
             btnDesconectar.Text = "Desconectar";
             btnDesconectar.UseVisualStyleBackColor = true;
             btnDesconectar.Click += btnDesconectar_Click;
-            // 
-            // timerLectura
-            // 
-            timerLectura.Tick += timerLectura_Tick;
-            // 
+            //
+            // btnRecargarConfig
+            //
+            btnRecargarConfig.Location = new Point(560, 21);
+            btnRecargarConfig.Name = "btnRecargarConfig";
+            btnRecargarConfig.Size = new Size(130, 26);
+            btnRecargarConfig.TabIndex = 5;
+            btnRecargarConfig.Text = "Recargar config.";
+            btnRecargarConfig.UseVisualStyleBackColor = true;
+            btnRecargarConfig.Click += btnRecargarConfig_Click;
+            //
+            // btnEnviarConfig
+            //
+            btnEnviarConfig.Location = new Point(696, 21);
+            btnEnviarConfig.Name = "btnEnviarConfig";
+            btnEnviarConfig.Size = new Size(150, 26);
+            btnEnviarConfig.TabIndex = 6;
+            btnEnviarConfig.Text = "Enviar config. al PLC";
+            btnEnviarConfig.UseVisualStyleBackColor = true;
+            btnEnviarConfig.Click += btnEnviarConfig_Click;
+            //
+            // grpGeneral
+            //
+            grpGeneral.Controls.Add(btnMarchaSecuencia);
+            grpGeneral.Controls.Add(btnParadaSecuencia);
+            grpGeneral.Controls.Add(label3);
+            grpGeneral.Controls.Add(numRetardo);
+            grpGeneral.Controls.Add(btnAplicarRetardo);
+            grpGeneral.Controls.Add(btnEmergencia);
+            grpGeneral.Controls.Add(btnDesactivarEmergencia);
+            grpGeneral.Controls.Add(btnResetGeneral);
+            grpGeneral.Controls.Add(chkSimulacion);
+            grpGeneral.Controls.Add(lblSecuencia);
+            grpGeneral.Dock = DockStyle.Top;
+            grpGeneral.Name = "grpGeneral";
+            grpGeneral.Size = new Size(1084, 70);
+            grpGeneral.TabIndex = 1;
+            grpGeneral.TabStop = false;
+            grpGeneral.Text = "Mando general";
+            //
+            // btnMarchaSecuencia
+            //
+            btnMarchaSecuencia.BackColor = Color.PaleGreen;
+            btnMarchaSecuencia.Location = new Point(10, 22);
+            btnMarchaSecuencia.Name = "btnMarchaSecuencia";
+            btnMarchaSecuencia.Size = new Size(110, 38);
+            btnMarchaSecuencia.TabIndex = 0;
+            btnMarchaSecuencia.Text = "Marcha línea";
+            btnMarchaSecuencia.UseVisualStyleBackColor = false;
+            btnMarchaSecuencia.Click += btnMarchaSecuencia_Click;
+            //
+            // btnParadaSecuencia
+            //
+            btnParadaSecuencia.BackColor = Color.Khaki;
+            btnParadaSecuencia.Location = new Point(126, 22);
+            btnParadaSecuencia.Name = "btnParadaSecuencia";
+            btnParadaSecuencia.Size = new Size(110, 38);
+            btnParadaSecuencia.TabIndex = 1;
+            btnParadaSecuencia.Text = "Parada línea";
+            btnParadaSecuencia.UseVisualStyleBackColor = false;
+            btnParadaSecuencia.Click += btnParadaSecuencia_Click;
+            //
+            // label3
+            //
+            label3.AutoSize = true;
+            label3.Location = new Point(248, 32);
+            label3.Name = "label3";
+            label3.Text = "Retardo (ms):";
+            //
+            // numRetardo
+            //
+            numRetardo.Increment = new decimal(new int[] { 100, 0, 0, 0 });
+            numRetardo.Location = new Point(330, 29);
+            numRetardo.Maximum = new decimal(new int[] { 600000, 0, 0, 0 });
+            numRetardo.Name = "numRetardo";
+            numRetardo.Size = new Size(80, 23);
+            numRetardo.TabIndex = 2;
+            //
+            // btnAplicarRetardo
+            //
+            btnAplicarRetardo.Location = new Point(416, 28);
+            btnAplicarRetardo.Name = "btnAplicarRetardo";
+            btnAplicarRetardo.Size = new Size(60, 25);
+            btnAplicarRetardo.TabIndex = 3;
+            btnAplicarRetardo.Text = "Aplicar";
+            btnAplicarRetardo.UseVisualStyleBackColor = true;
+            btnAplicarRetardo.Click += btnAplicarRetardo_Click;
+            //
+            // btnEmergencia
+            //
+            btnEmergencia.BackColor = Color.Red;
+            btnEmergencia.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnEmergencia.ForeColor = Color.White;
+            btnEmergencia.Location = new Point(496, 22);
+            btnEmergencia.Name = "btnEmergencia";
+            btnEmergencia.Size = new Size(110, 38);
+            btnEmergencia.TabIndex = 4;
+            btnEmergencia.Text = "EMERGENCIA";
+            btnEmergencia.UseVisualStyleBackColor = false;
+            btnEmergencia.Click += btnEmergencia_Click;
+            //
+            // btnDesactivarEmergencia
+            //
+            btnDesactivarEmergencia.Location = new Point(612, 22);
+            btnDesactivarEmergencia.Name = "btnDesactivarEmergencia";
+            btnDesactivarEmergencia.Size = new Size(110, 38);
+            btnDesactivarEmergencia.TabIndex = 5;
+            btnDesactivarEmergencia.Text = "Rearmar emerg.";
+            btnDesactivarEmergencia.UseVisualStyleBackColor = true;
+            btnDesactivarEmergencia.Click += btnDesactivarEmergencia_Click;
+            //
+            // btnResetGeneral
+            //
+            btnResetGeneral.Location = new Point(728, 22);
+            btnResetGeneral.Name = "btnResetGeneral";
+            btnResetGeneral.Size = new Size(100, 38);
+            btnResetGeneral.TabIndex = 6;
+            btnResetGeneral.Text = "Reset fallos";
+            btnResetGeneral.UseVisualStyleBackColor = true;
+            btnResetGeneral.Click += btnResetGeneral_Click;
+            //
+            // chkSimulacion
+            //
+            chkSimulacion.AutoSize = true;
+            chkSimulacion.Location = new Point(840, 31);
+            chkSimulacion.Name = "chkSimulacion";
+            chkSimulacion.TabIndex = 7;
+            chkSimulacion.Text = "Simulación (PLCSIM)";
+            chkSimulacion.UseVisualStyleBackColor = true;
+            chkSimulacion.CheckedChanged += chkSimulacion_CheckedChanged;
+            //
+            // lblSecuencia
+            //
+            lblSecuencia.AutoSize = true;
+            lblSecuencia.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            lblSecuencia.Location = new Point(980, 32);
+            lblSecuencia.Name = "lblSecuencia";
+            lblSecuencia.Text = "Línea: —";
+            //
+            // tabPlanta
+            //
+            tabPlanta.Controls.Add(tabCintas);
+            tabPlanta.Controls.Add(tabTemperaturas);
+            tabPlanta.Controls.Add(tabVariadores);
+            tabPlanta.Dock = DockStyle.Fill;
+            tabPlanta.Name = "tabPlanta";
+            tabPlanta.SelectedIndex = 0;
+            tabPlanta.TabIndex = 2;
+            //
+            // tabCintas
+            //
+            tabCintas.Controls.Add(flpCintas);
+            tabCintas.Name = "tabCintas";
+            tabCintas.Padding = new Padding(3);
+            tabCintas.Text = "Cintas";
+            tabCintas.UseVisualStyleBackColor = true;
+            //
+            // flpCintas
+            //
+            flpCintas.AutoScroll = true;
+            flpCintas.Dock = DockStyle.Fill;
+            flpCintas.Name = "flpCintas";
+            //
+            // tabTemperaturas
+            //
+            tabTemperaturas.Controls.Add(flpTemperaturas);
+            tabTemperaturas.Name = "tabTemperaturas";
+            tabTemperaturas.Padding = new Padding(3);
+            tabTemperaturas.Text = "Temperaturas";
+            tabTemperaturas.UseVisualStyleBackColor = true;
+            //
+            // flpTemperaturas
+            //
+            flpTemperaturas.AutoScroll = true;
+            flpTemperaturas.Dock = DockStyle.Fill;
+            flpTemperaturas.Name = "flpTemperaturas";
+            //
+            // tabVariadores
+            //
+            tabVariadores.Controls.Add(flpVariadores);
+            tabVariadores.Name = "tabVariadores";
+            tabVariadores.Padding = new Padding(3);
+            tabVariadores.Text = "Variadores";
+            tabVariadores.UseVisualStyleBackColor = true;
+            //
+            // flpVariadores
+            //
+            flpVariadores.AutoScroll = true;
+            flpVariadores.Dock = DockStyle.Fill;
+            flpVariadores.Name = "flpVariadores";
+            //
             // stBar
-            // 
-            stBar.Items.AddRange(new ToolStripItem[] { stCinta1, stCinta2, stCinta3, lblAI1, lblAI2, lblAI3, lblAI4, lblSensorCinta3On, lblSensorCinta3Off, lblSensorCinta2Extra, lblSensorCinta2Cinta3, lblSensorCinta3Extra, lblEmergencia });
-            stBar.Location = new Point(0, 302);
+            //
+            stBar.Items.AddRange(new ToolStripItem[] { stConexion, stEmergencia, stSecuencia, stMensaje });
             stBar.Name = "stBar";
-            stBar.Size = new Size(693, 22);
-            stBar.TabIndex = 5;
-            stBar.Text = "statusStrip1";
-            // 
-            // stCinta1
-            // 
-            stCinta1.Name = "stCinta1";
-            stCinta1.Size = new Size(44, 17);
-            stCinta1.Text = "Cinta 1";
-            // 
-            // stCinta2
-            // 
-            stCinta2.Name = "stCinta2";
-            stCinta2.Size = new Size(44, 17);
-            stCinta2.Text = "Cinta 2";
-            // 
-            // stCinta3
-            // 
-            stCinta3.Name = "stCinta3";
-            stCinta3.Size = new Size(44, 17);
-            stCinta3.Text = "Cinta 3";
-            // 
-            // lblAI1
-            // 
-            lblAI1.Name = "lblAI1";
-            lblAI1.Size = new Size(51, 17);
-            lblAI1.Text = "Sensor 1";
-            // 
-            // lblAI2
-            // 
-            lblAI2.Name = "lblAI2";
-            lblAI2.Size = new Size(51, 17);
-            lblAI2.Text = "Sensor 2";
-            // 
-            // lblAI3
-            // 
-            lblAI3.Name = "lblAI3";
-            lblAI3.Size = new Size(51, 17);
-            lblAI3.Text = "Sensor 3";
-            // 
-            // lblAI4
-            // 
-            lblAI4.Name = "lblAI4";
-            lblAI4.Size = new Size(51, 17);
-            lblAI4.Text = "Sensor 4";
-            // 
-            // lblSensorCinta3On
-            // 
-            lblSensorCinta3On.Name = "lblSensorCinta3On";
-            lblSensorCinta3On.Size = new Size(51, 17);
-            lblSensorCinta3On.Text = "Sensor 5";
-            // 
-            // lblSensorCinta3Off
-            // 
-            lblSensorCinta3Off.Name = "lblSensorCinta3Off";
-            lblSensorCinta3Off.Size = new Size(51, 17);
-            lblSensorCinta3Off.Text = "Sensor 6";
-            // 
-            // lblSensorCinta2Extra
-            // 
-            lblSensorCinta2Extra.Name = "lblSensorCinta2Extra";
-            lblSensorCinta2Extra.Size = new Size(51, 17);
-            lblSensorCinta2Extra.Text = "Sensor 7";
-            // 
-            // lblSensorCinta2Cinta3
-            // 
-            lblSensorCinta2Cinta3.Name = "lblSensorCinta2Cinta3";
-            lblSensorCinta2Cinta3.Size = new Size(51, 17);
-            lblSensorCinta2Cinta3.Text = "Sensor 8";
-            // 
-            // lblSensorCinta3Extra
-            // 
-            lblSensorCinta3Extra.Name = "lblSensorCinta3Extra";
-            lblSensorCinta3Extra.Size = new Size(51, 17);
-            lblSensorCinta3Extra.Text = "Sensor 9";
-            // 
-            // lblEmergencia
-            // 
-            lblEmergencia.Name = "lblEmergencia";
-            lblEmergencia.Size = new Size(69, 17);
-            lblEmergencia.Text = "Emergencia";
-            // 
-            // btnSensorCinta1
-            // 
-            btnSensorCinta1.BackColor = Color.OliveDrab;
-            btnSensorCinta1.Location = new Point(5, 31);
-            btnSensorCinta1.Name = "btnSensorCinta1";
-            btnSensorCinta1.Size = new Size(63, 42);
-            btnSensorCinta1.TabIndex = 0;
-            btnSensorCinta1.Text = "Sensor Cinta 1";
-            btnSensorCinta1.UseVisualStyleBackColor = false;
-            // 
-            // btnSensorCinta2
-            // 
-            btnSensorCinta2.BackColor = Color.IndianRed;
-            btnSensorCinta2.Location = new Point(78, 31);
-            btnSensorCinta2.Name = "btnSensorCinta2";
-            btnSensorCinta2.Size = new Size(60, 42);
-            btnSensorCinta2.TabIndex = 0;
-            btnSensorCinta2.Text = "Sensor Cinta 2";
-            btnSensorCinta2.UseVisualStyleBackColor = false;
-            // 
-            // btnSensorCinta3
-            // 
-            btnSensorCinta3.BackColor = Color.OliveDrab;
-            btnSensorCinta3.Location = new Point(144, 31);
-            btnSensorCinta3.Name = "btnSensorCinta3";
-            btnSensorCinta3.Size = new Size(61, 42);
-            btnSensorCinta3.TabIndex = 0;
-            btnSensorCinta3.Text = "Sensor Cinta 3";
-            btnSensorCinta3.UseVisualStyleBackColor = false;
-            // 
-            // groupBox1
-            // 
-            groupBox1.Controls.Add(numericUpDownAQ4);
-            groupBox1.Controls.Add(numericUpDownAQ3);
-            groupBox1.Controls.Add(numericUpDownAQ2);
-            groupBox1.Controls.Add(numericUpDownAQ1);
-            groupBox1.Controls.Add(btnSensorCinta3);
-            groupBox1.Controls.Add(btnSensorCinta2);
-            groupBox1.Controls.Add(btnSensorCinta1);
-            groupBox1.Location = new Point(12, 199);
-            groupBox1.Name = "groupBox1";
-            groupBox1.Size = new Size(675, 89);
-            groupBox1.TabIndex = 3;
-            groupBox1.TabStop = false;
-            groupBox1.Text = "Envío de comandos al PLC";
-            // 
-            // numericUpDownAQ4
-            // 
-            numericUpDownAQ4.Location = new Point(484, 43);
-            numericUpDownAQ4.Name = "numericUpDownAQ4";
-            numericUpDownAQ4.Size = new Size(85, 23);
-            numericUpDownAQ4.TabIndex = 1;
-            // 
-            // numericUpDownAQ3
-            // 
-            numericUpDownAQ3.Location = new Point(393, 43);
-            numericUpDownAQ3.Name = "numericUpDownAQ3";
-            numericUpDownAQ3.Size = new Size(85, 23);
-            numericUpDownAQ3.TabIndex = 1;
-            // 
-            // numericUpDownAQ2
-            // 
-            numericUpDownAQ2.Location = new Point(302, 43);
-            numericUpDownAQ2.Name = "numericUpDownAQ2";
-            numericUpDownAQ2.Size = new Size(85, 23);
-            numericUpDownAQ2.TabIndex = 1;
-            // 
-            // numericUpDownAQ1
-            // 
-            numericUpDownAQ1.Location = new Point(211, 43);
-            numericUpDownAQ1.Name = "numericUpDownAQ1";
-            numericUpDownAQ1.Size = new Size(85, 23);
-            numericUpDownAQ1.TabIndex = 1;
-            // 
+            stBar.TabIndex = 3;
+            //
+            // stConexion
+            //
+            stConexion.Name = "stConexion";
+            stConexion.Text = "Desconectado";
+            //
+            // stEmergencia
+            //
+            stEmergencia.Name = "stEmergencia";
+            stEmergencia.Text = "Emergencia: —";
+            //
+            // stSecuencia
+            //
+            stSecuencia.Name = "stSecuencia";
+            stSecuencia.Text = "Paso: —";
+            //
+            // stMensaje
+            //
+            stMensaje.Name = "stMensaje";
+            stMensaje.Spring = true;
+            stMensaje.TextAlign = ContentAlignment.MiddleLeft;
+            //
+            // timerLectura
+            //
+            timerLectura.Interval = 500;
+            timerLectura.Tick += timerLectura_Tick;
+            //
             // Form1
-            // 
+            //
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(693, 324);
-            Controls.Add(stBar);
+            ClientSize = new Size(1084, 661);
+            Controls.Add(tabPlanta);
+            Controls.Add(grpGeneral);
             Controls.Add(grpConectar);
-            Controls.Add(groupBox1);
-            Controls.Add(grpControlCintas);
+            Controls.Add(stBar);
+            MinimumSize = new Size(900, 500);
             Name = "Form1";
             Text = "Control de Cintas Transportadoras con PLC";
-            grpControlCintas.ResumeLayout(false);
-            grpControlCintas.PerformLayout();
             grpConectar.ResumeLayout(false);
             grpConectar.PerformLayout();
+            grpGeneral.ResumeLayout(false);
+            grpGeneral.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)numRetardo).EndInit();
+            tabPlanta.ResumeLayout(false);
+            tabCintas.ResumeLayout(false);
+            tabTemperaturas.ResumeLayout(false);
+            tabVariadores.ResumeLayout(false);
             stBar.ResumeLayout(false);
             stBar.PerformLayout();
-            groupBox1.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)numericUpDownAQ4).EndInit();
-            ((System.ComponentModel.ISupportInitialize)numericUpDownAQ3).EndInit();
-            ((System.ComponentModel.ISupportInitialize)numericUpDownAQ2).EndInit();
-            ((System.ComponentModel.ISupportInitialize)numericUpDownAQ1).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }
 
         #endregion
 
-        private Button btnConectar;
-        private TextBox txtIP;
-        private TextBox txtPort;
-        private Button btnCinta1_ON;
-        private Button btnCinta2_ON;
-        private Button btnCinta3_ON;
-        private GroupBox grpControlCintas;
-        private Label lblCinta3;
-        private Label lblCinta2;
-        private Label lblCinta1;
         private GroupBox grpConectar;
-        private Label label2;
         private Label label1;
+        private TextBox txtIP;
+        private Label label2;
+        private TextBox txtPort;
+        private Button btnConectar;
         private Button btnDesconectar;
-        private System.Windows.Forms.Timer timerLectura;
-        private Button btnEmergencia;
-        private Button btnAplicarAQ;
-        private StatusStrip stBar;
-        private ToolStripStatusLabel stCinta1;
-        private ToolStripStatusLabel stCinta2;
-        private ToolStripStatusLabel stCinta3;
-        private Button btnDesactivarEmergencia;
-        private ToolStripStatusLabel lblAI1;
-        private ToolStripStatusLabel lblAI2;
-        private ToolStripStatusLabel lblAI3;
-        private ToolStripStatusLabel lblAI4;
-        private ToolStripStatusLabel lblSensorCinta3On;
-        private ToolStripStatusLabel lblSensorCinta3Off;
-        private ToolStripStatusLabel lblSensorCinta2Extra;
-        private ToolStripStatusLabel lblSensorCinta2Cinta3;
-        private ToolStripStatusLabel lblSensorCinta3Extra;
-        private ToolStripStatusLabel lblEmergencia;
-        private Button btnSensorCinta1;
-        private Button btnSensorCinta2;
-        private Button btnSensorCinta3;
-        private GroupBox groupBox1;
-        private TextBox txtDelay;
+        private Button btnRecargarConfig;
+        private Button btnEnviarConfig;
+        private GroupBox grpGeneral;
+        private Button btnMarchaSecuencia;
+        private Button btnParadaSecuencia;
         private Label label3;
-        private Button btnMarchaParada;
-        private NumericUpDown numericUpDownAQ4;
-        private NumericUpDown numericUpDownAQ3;
-        private NumericUpDown numericUpDownAQ2;
-        private NumericUpDown numericUpDownAQ1;
+        private NumericUpDown numRetardo;
+        private Button btnAplicarRetardo;
+        private Button btnEmergencia;
+        private Button btnDesactivarEmergencia;
+        private Button btnResetGeneral;
+        private CheckBox chkSimulacion;
+        private Label lblSecuencia;
+        private TabControl tabPlanta;
+        private TabPage tabCintas;
+        private FlowLayoutPanel flpCintas;
+        private TabPage tabTemperaturas;
+        private FlowLayoutPanel flpTemperaturas;
+        private TabPage tabVariadores;
+        private FlowLayoutPanel flpVariadores;
+        private StatusStrip stBar;
+        private ToolStripStatusLabel stConexion;
+        private ToolStripStatusLabel stEmergencia;
+        private ToolStripStatusLabel stSecuencia;
+        private ToolStripStatusLabel stMensaje;
+        private System.Windows.Forms.Timer timerLectura;
     }
 }
